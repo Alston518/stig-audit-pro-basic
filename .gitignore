@@ -24,6 +24,7 @@ build/
 dist/
 *.spec
 !STIG Audit Pro Basic.spec
+!stig-audit-pro.spec
 *.egg-info/
 
 *.log

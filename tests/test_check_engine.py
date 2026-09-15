@@ -531,7 +531,7 @@ login block-for 900 attempts 3 within 120
 login on-success log
 login on-failure log
 logging userinfo
-service timestamps log datetime msec localtime show-timezone year
+service timestamps log datetime msec localtime show-timezone
 logging buffered 65536 informational
 logging trap warnings
 """
