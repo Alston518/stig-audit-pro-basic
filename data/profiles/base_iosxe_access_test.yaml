@@ -1,0 +1,82 @@
+# Editable test copy of data/profiles/base_iosxe_access.yaml.
+# Use this file while developing checks so the production base profile is unchanged.
+profile_name: base_iosxe_access_test
+inherits: null
+unused_vlan: 999
+native_vlan: 333
+management_vlan: 300
+disabled_port_policy:
+  require_shutdown: true
+  required_access_vlan: 999
+trunk_policy:
+  vlan_1_must_be_pruned: true
+  additional_pruned_vlans: []
+dhcp_snooping:
+  enabled: true
+  vlans:
+  - 556
+  - 565
+  required_global_commands:
+  - ip dhcp snooping
+arp_inspection:
+  enabled: true
+  vlans:
+  - 556
+  - 565
+root_guard:
+  # Enter Device ID hostnames from "show cdp neighbors detail". Short names and FQDNs both match.
+  # A matching core/distribution neighbor exempts only the local interface connected to that neighbor.
+  upstream_switches:
+  - C9606R-cedu-carpa-650-2015-11-1.armywarcollege.edu
+management_access:
+  # ACL applied inbound to every VTY section.
+  acl_name: MANAGEMENT_NET
+  # Approved source networks. Enter the subnet mask, not the ACL wildcard.
+  networks:
+  - network_address: 192.0.2.0
+    subnet_mask: 255.255.255.0
+endpoint_authentication:
+  # Match the name after: aaa group server radius <group-name>
+  radius_group: ISE-RADIUS
+  # List every required "server name" entry indented under that AAA group.
+  radius_servers:
+  - ISE1-EDU-01
+  - ISE2-EDU-02
+  # Map each required RADIUS server name to the IPv4 address expected in
+  # its "radius server <name>" configuration section.
+  radius_server_addresses:
+    ISE1-EDU-01: 192.0.2.18
+    ISE2-EDU-02: 192.0.2.19
+comments:
+  default_open_prefix: Automated STIG validation found noncompliant configuration.
+  default_pass_prefix: Automated STIG validation found required configuration present.
+  default_error_prefix: Automated STIG validation could not confidently evaluate this requirement.
+variables:
+  site_label: Test IOS-XE access switch profile
+  required_user_vlans:
+  - 556
+  - 565
+  # List the exact hostname or IP address that follows each required
+  # "logging host" command. At least two servers must be listed.
+  logging_servers:
+  - LOGGING-SERVER-1
+  - LOGGING-SERVER-2
+  # List at least two exact hostnames or IP addresses that follow
+  # "ntp server" in the running configuration.
+  ntp_servers:
+  - NTP-SERVER-1
+  - NTP-SERVER-2
+  # List every IOS-XE release currently approved by the organization and
+  # confirmed to remain supported by Cisco. Use the exact "show version" value.
+  supported_iosxe_versions:
+  - 17.09.05
+  - 17.12.04
+  # Name referenced after "common-criteria-policy" on the one permitted
+  # local username command.
+  local_password_policy: PASSWORD_POLICY
+  # AAA TACACS+ server-group name used before "local" in the default
+  # login authentication method list.
+  tacacs_group: ISE-TACACS
+  # Organization-defined maximum number of concurrent management sessions.
+  # When session-limit is unavailable, the check counts configured VTY lines.
+  max_concurrent_management_sessions: 16

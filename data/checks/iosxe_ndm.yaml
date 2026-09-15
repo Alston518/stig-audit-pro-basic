@@ -969,6 +969,7 @@ checks:
     minimum_servers: 2
     approved_algorithms:
     - hmac-sha2-256  
+    - md5
     result:
     pass_status: NotAFinding
     fail_status: Open
