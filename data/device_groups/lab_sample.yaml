@@ -1,0 +1,9 @@
+﻿group_name: lab_sample
+profile_name: example_site
+targets:
+  - ip: 10.50.10.25
+    profile_override: null
+    checked: true
+  - ip: 10.50.10.26
+    profile_override: null
+    checked: true

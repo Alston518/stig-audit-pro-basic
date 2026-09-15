@@ -1,0 +1,31 @@
+library_name: iosxe_ndm_test
+
+checks:
+  - vuln_id: V-220554
+    stig_id: CISC-ND-001150
+    title: The Cisco switch must be configured to authenticate Network Time Protocol (NTP) sources using authentication that is cryptographically based.
+    looking_for: Require every profile-defined NTP server to use a trusted HMAC-SHA2-256 authentication key
+    stig_family: IOSXE_NDM
+    severity: cat2
+    check_type: ntp_authentication_policy
+    commands:
+      - show running-config
+    automated: true
+    scope: {}
+    conditions:
+      command: show running-config
+      ntp_servers_profile_key: ntp_servers
+      minimum_servers: 2
+      approved_algorithms:
+        - hmac-sha2-256
+    result:
+      pass_status: NotAFinding
+      fail_status: Open
+      error_status: Error
+    evidence:
+      include_command_output: false
+      include_failed_objects: true
+      pass_comment: Every profile-defined NTP server uses a trusted HMAC-SHA2-256 authentication key and global NTP authentication is enabled.
+      fail_comment: Global NTP authentication is disabled, or one or more profile-defined NTP servers do not use a trusted HMAC-SHA2-256 key.
+      error_comment: NTP source authentication could not be evaluated.
+      finding_details_template: default

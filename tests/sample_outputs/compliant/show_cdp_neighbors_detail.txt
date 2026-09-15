@@ -1,0 +1,10 @@
+-------------------------
+Device ID: CORE-DIST-01.example.mil
+Entry address(es):
+  IP address: 10.50.10.1
+Platform: cisco C9500-24Y4C, Capabilities: Router Switch IGMP
+Interface: GigabitEthernet1/0/24, Port ID (outgoing port): TenGigabitEthernet1/0/1
+Holdtime : 136 sec
+
+Version :
+Cisco IOS XE Software

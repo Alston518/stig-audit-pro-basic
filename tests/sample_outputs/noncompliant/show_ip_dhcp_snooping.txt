@@ -1,0 +1,8 @@
+﻿Switch DHCP snooping is disabled
+DHCP snooping is configured on following VLANs:
+10,20
+DHCP snooping is operational on following VLANs:
+10,20
+Interface                    Trusted    Allow option
+------------------------     -------    ------------
+Gi1/0/24                     no         no

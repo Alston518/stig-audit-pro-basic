@@ -1,0 +1,21 @@
+@startuml
+actor Administrator
+participant "STIG Library UI" as UI
+participant StigLifecycleService
+participant XccdfImporter
+database "Versioned STIG Repository" as Repo
+participant StigDiff
+participant "YAML Impact Analyzer" as Impact
+Administrator -> UI: Import ZIP/XML
+UI -> StigLifecycleService: import release
+StigLifecycleService -> XccdfImporter: parse + normalize
+StigLifecycleService -> Repo: save new release (never overwrite)
+StigLifecycleService -> Repo: find previous same family/benchmark
+alt previous release exists
+  StigLifecycleService -> StigDiff: compare normalized rules
+  StigDiff -> Impact: map changes to data/checks/*.yaml
+  Impact --> UI: field changes + recommended actions
+else baseline import
+  StigLifecycleService --> UI: NO_PREVIOUS_RELEASE
+end
+@enduml

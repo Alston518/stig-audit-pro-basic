@@ -1,0 +1,6 @@
+group_name: session_targets
+profile_name: example_site
+targets:
+- ip: 172.16.100.55
+  profile_override: base_iosxe_access
+  checked: true

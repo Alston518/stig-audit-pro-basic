@@ -1,0 +1,62 @@
+{
+  "title": "Representative IOS-XE Checklist",
+  "id": "b79854be-18fa-45ba-86de-ab669f40c1c9",
+  "stigs": [
+    {
+      "stig_name": "Cisco IOS-XE Switch L2 STIG",
+      "display_name": "Cisco IOS-XE Switch L2 STIG",
+      "stig_id": "Cisco_IOS_XE_Switch_L2S_STIG",
+      "release_info": "Release: 1 Benchmark Date: 01 Jan 2026",
+      "version": "3",
+      "uuid": "46aad950-f598-4bd8-83d6-f94c7b7d352e",
+      "reference_identifier": "",
+      "size": 1,
+      "rules": [
+        {
+          "group_id_src": "V-220665",
+          "group_tree": [{"id": "V-220665", "title": "Test rule", "description": ""}],
+          "group_id": "V-220665",
+          "severity": "medium",
+          "group_title": "Test rule",
+          "rule_id_src": "SV-220665r1_rule",
+          "rule_id": "SV-220665r1",
+          "rule_version": "CISC-L2-000010",
+          "rule_title": "Test rule",
+          "fix_text": "Use an approved administrative process.",
+          "weight": "10.0",
+          "check_content": "Review the applicable show command output.",
+          "check_content_ref": {"name": "M", "href": ""},
+          "classification": "Unclassified",
+          "discussion": "Representative fixture.",
+          "legacy_ids": [],
+          "ccis": [],
+          "uuid": "a25f43bb-f260-460e-b2af-691b33fba0fe",
+          "stig_uuid": "46aad950-f598-4bd8-83d6-f94c7b7d352e",
+          "status": "not_reviewed",
+          "overrides": {},
+          "comments": "Existing assessor note",
+          "finding_details": "",
+          "srg_id": "V-220665"
+        }
+      ]
+    }
+  ],
+  "active": false,
+  "mode": 1,
+  "has_path": true,
+  "target_data": {
+    "target_type": "Computing",
+    "host_name": "old-host",
+    "ip_address": "192.0.2.10",
+    "mac_address": "",
+    "fqdn": "old-host.example.test",
+    "comments": "",
+    "role": "None",
+    "is_web_database": false,
+    "technology_area": "Network",
+    "web_db_site": "",
+    "web_db_instance": "",
+    "classification": null
+  },
+  "cklb_version": "1.0"
+}

@@ -1,0 +1,58 @@
+@startuml
+entity audit_run {
+  * id : UUID
+  --
+  status
+  profile_sha256
+  check_pack_sha256
+}
+entity run_device {
+  * id
+  * run_id
+  target_ip
+  status
+}
+entity check_result {
+  * id
+  * run_device_id
+  vuln_id
+  status
+}
+entity evidence_artifact {
+  * id
+  * run_device_id
+  command
+  relative_path
+  sha256
+}
+entity result_evidence {
+  * check_result_id
+  * evidence_artifact_id
+}
+entity stig_benchmark {
+  * id
+  family
+  benchmark_id
+  version
+  release
+}
+entity stig_rule {
+  * id
+  * benchmark_db_id
+  vuln_id
+  rule_fingerprint
+}
+entity check_mapping {
+  * id
+  stig_rule_id
+  vuln_id
+  review_status
+}
+audit_run ||--o{ run_device
+run_device ||--o{ check_result
+run_device ||--o{ evidence_artifact
+check_result ||--o{ result_evidence
+evidence_artifact ||--o{ result_evidence
+stig_benchmark ||--o{ stig_rule
+stig_rule |o--o{ check_mapping
+@enduml

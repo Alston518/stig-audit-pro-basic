@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Benchmark xmlns="http://checklists.nist.gov/xccdf/1.2" id="Synthetic_IOSXE_L2_STIG">
+  <title>Synthetic Cisco IOS-XE Switch L2 STIG</title>
+  <version>V3</version>
+  <status date="2026-04-01">accepted</status>
+  <plain-text id="release-info">Release: 2 Benchmark Date: 01 Apr 2026</plain-text>
+  <Group id="V-100"><Rule id="SV-100r1_rule" severity="medium"><version>CISC-L2-000100</version><title>Unchanged rule</title><check><check-content>Run show running-config.
+The setting must exist.</check-content></check><fixtext>Configure the setting through an authorized process.</fixtext></Rule></Group>
+  <Group id="V-300"><Rule id="SV-300r1_rule" severity="medium"><version>CISC-L2-000300</version><title>Severity rule</title><check><check-content>Review severity evidence.</check-content></check><fixtext>Correct severity setting.</fixtext></Rule></Group>
+  <Group id="V-400"><Rule id="SV-400r1_rule" severity="medium"><version>CISC-L2-000400</version><title>Check procedure rule</title><check><check-content>Run show running-config and verify new-procedure plus operational state.</check-content></check><fixtext>Configure procedure setting.</fixtext></Rule></Group>
+  <Group id="V-500"><Rule id="SV-500r1_rule" severity="medium"><version>CISC-L2-000500</version><title>Fix guidance rule</title><check><check-content>Review stable check procedure.</check-content></check><fixtext>Use revised fix guidance and validate the saved standard.</fixtext></Rule></Group>
+  <Group id="V-600"><Rule id="SV-600r2_rule" severity="high"><version>CISC-L2-000600</version><title>Rule ID revision</title><check><check-content>Review stable revision procedure.</check-content></check><fixtext>Correct revision setting.</fixtext></Rule></Group>
+  <Group id="V-700"><Rule id="SV-700r1_rule" severity="medium"><version>CISC-L2-000700</version><title>Added rule</title><check><check-content>Review the new requirement.</check-content></check><fixtext>Implement the new setting outside this auditing application.</fixtext></Rule></Group>
+</Benchmark>

@@ -1,0 +1,58 @@
+schema_version: 1
+library_name: synthetic_l2
+library_version: "2026.01"
+checks:
+  - vuln_id: V-100
+    rule_id: SV-100r1_rule
+    stig_id: CISC-L2-000100
+    title: Unchanged rule
+    stig_family: IOSXE_L2
+    severity: cat2
+    check_type: command_contains
+    commands: [show running-config]
+    conditions: {strings: [unchanged]}
+  - vuln_id: V-200
+    rule_id: SV-200r1_rule
+    stig_id: CISC-L2-000200
+    title: Removed rule
+    stig_family: IOSXE_L2
+    severity: cat3
+    check_type: command_contains
+    commands: [show running-config]
+    conditions: {strings: [removed]}
+  - vuln_id: V-300
+    rule_id: SV-300r1_rule
+    stig_id: CISC-L2-000300
+    title: Severity rule
+    stig_family: IOSXE_L2
+    severity: cat3
+    check_type: command_contains
+    commands: [show running-config]
+    conditions: {strings: [severity]}
+  - vuln_id: V-400
+    rule_id: SV-400r1_rule
+    stig_id: CISC-L2-000400
+    title: Check procedure rule
+    stig_family: IOSXE_L2
+    severity: cat2
+    check_type: command_contains
+    commands: [show running-config]
+    conditions: {strings: [old-procedure]}
+  - vuln_id: V-500
+    rule_id: SV-500r1_rule
+    stig_id: CISC-L2-000500
+    title: Fix guidance rule
+    stig_family: IOSXE_L2
+    severity: cat2
+    check_type: command_contains
+    commands: [show running-config]
+    conditions: {strings: [stable]}
+  - vuln_id: V-600
+    rule_id: SV-600r1_rule
+    stig_id: CISC-L2-000600
+    title: Rule ID revision
+    stig_family: IOSXE_L2
+    severity: cat1
+    check_type: manual_review
+    automated: false
+    commands: []

@@ -1,0 +1,6 @@
+﻿Extended IP access list USER-IN
+    10 remark Allow normal user traffic
+    20 deny ip any any log-input
+    30 permit ip any any
+Standard IP access list 10
+    10 deny 192.0.2.0 0.0.0.255 log-input

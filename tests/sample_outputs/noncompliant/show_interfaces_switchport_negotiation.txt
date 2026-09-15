@@ -1,0 +1,3 @@
+Negotiation of Trunking: Off
+Negotiation of Trunking: On
+Negotiation of Trunking: Off

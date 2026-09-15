@@ -1,0 +1,45 @@
+﻿version 17.9
+hostname SW-ACCESS-02
+!
+no ip igmp snooping
+!
+ip dhcp snooping vlan 10,20
+ip arp inspection vlan 10,20
+!
+ip access-list extended USER-IN
+ remark Missing log-input on the deny line below
+ deny ip any any
+ permit ip any any
+!
+access-list 10 deny 192.0.2.0 0.0.0.255 log
+!
+interface GigabitEthernet1/0/1
+ description USER-PORT
+ switchport mode access
+ switchport access vlan 10
+ no shutdown
+!
+interface GigabitEthernet1/0/2
+ description SPARE-BUT-ACTIVE
+ switchport mode access
+ switchport access vlan 1
+ no shutdown
+!
+interface GigabitEthernet1/0/3
+ description UNUSED-SHUTDOWN
+ switchport mode access
+ switchport access vlan 999
+ shutdown
+!
+interface GigabitEthernet1/0/24
+ description UPLINK
+ switchport mode trunk
+ switchport trunk allowed vlan 1,10,20,30,999
+ negotiation auto
+ no shutdown
+!
+interface Vlan1
+ description DEFAULT-MANAGEMENT
+ ip address 192.0.2.10 255.255.255.0
+!
+end

@@ -1,0 +1,37 @@
+@startuml
+skinparam componentStyle rectangle
+component "CustomTkinter GUI" as GUI
+package "Application" {
+  component AuditService
+  component ScanOrchestrator
+  component RunService
+  component StigLifecycleService
+  component ReportService
+}
+package "Core" {
+  component CheckEngine
+  component ParserEngine
+  component CommandPolicy
+  component "Result/Evidence Models" as Models
+}
+package "Infrastructure" {
+  component "Netmiko SSH Adapter" as SSH
+  database SQLite
+  component EvidenceStore
+  component "XCCDF/CKL/CKLB/Reports" as Adapters
+}
+GUI --> AuditService
+GUI --> RunService
+GUI --> StigLifecycleService
+GUI --> ReportService
+AuditService --> ScanOrchestrator
+AuditService --> CheckEngine
+AuditService --> ParserEngine
+AuditService --> SSH
+SSH --> CommandPolicy
+RunService --> SQLite
+RunService --> EvidenceStore
+StigLifecycleService --> SQLite
+ReportService --> Adapters
+CheckEngine --> Models
+@enduml

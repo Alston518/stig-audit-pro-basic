@@ -1,0 +1,5 @@
+User name: NETOPS
+Engine ID: 800000090300001122334455
+storage-type: nonvolatile        active
+Authentication Protocol: MD5
+Privacy Protocol: DES

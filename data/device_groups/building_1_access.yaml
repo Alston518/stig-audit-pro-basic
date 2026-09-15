@@ -1,0 +1,6 @@
+group_name: building_1_access
+profile_name: base_iosxe_access
+targets:
+- ip: 172.16.100.55
+  profile_override: base_iosxe_access
+  checked: true

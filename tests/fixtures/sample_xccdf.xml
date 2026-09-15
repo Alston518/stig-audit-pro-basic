@@ -1,0 +1,18 @@
+﻿<Benchmark xmlns="http://checklists.nist.gov/xccdf/1.2" id="cisco_iosxe_switch_l2s">
+  <status date="2026-07-04">accepted</status>
+  <title>Cisco IOS-XE Switch L2S Security Technical Implementation Guide</title>
+  <description>Sample benchmark for tests.</description>
+  <plain-text id="release-info">Release: 1 Benchmark Date: 04 Jul 2026</plain-text>
+  <version>V1R1</version>
+  <Group id="V-123456">
+    <title>Sample disabled port rule</title>
+    <Rule id="SV-123456r1_rule" severity="medium">
+      <version>CISC-L2-000210</version>
+      <title>Disabled switch ports must be shutdown and assigned to the unused VLAN.</title>
+      <check system="C-123456r1_chk">
+        <check-content>Review disabled switch ports.</check-content>
+      </check>
+      <fixtext fixref="F-123456r1_fix">Configure shutdown and unused VLAN.</fixtext>
+    </Rule>
+  </Group>
+</Benchmark>

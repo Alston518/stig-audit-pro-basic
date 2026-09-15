@@ -1,0 +1,3 @@
+Cisco IOS XE Software, Version 16.12.04
+Cisco Catalyst L3 Switch Software (CAT9K_IOSXE), Version 16.12.04
+Configuration register is 0x102

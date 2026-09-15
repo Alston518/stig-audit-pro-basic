@@ -1,0 +1,31 @@
+profile_name: example_site
+inherits: base_iosxe_access
+unused_vlan: 999
+disabled_port_policy:
+  require_shutdown: true
+  required_access_vlan: 999
+trunk_policy:
+  vlan_1_must_be_pruned: true
+  additional_pruned_vlans: []
+dhcp_snooping:
+  enabled: true
+  vlans:
+  - 10
+  - 20
+  - 30
+arp_inspection:
+  enabled: true
+  vlans:
+  - 10
+  - 20
+  - 30
+root_guard:
+  # Replace this example with the actual core/distribution CDP Device ID hostname(s) for the site.
+  upstream_switches:
+  - CORE-DIST-01
+variables:
+  site_label: Example site
+  required_user_vlans:
+  - 10
+  - 20
+  - 30

@@ -1,0 +1,72 @@
+﻿version 17.9
+hostname SW-ACCESS-01
+!
+aaa group server radius ISE-RADIUS
+ server name ISE1-EDU-01
+ server name ISE2-EDU-02
+!
+udld enable
+!
+spanning-tree mode rapid-pvst
+spanning-tree loopguard default
+!
+ip dhcp snooping vlan 10,20,30
+ip dhcp snooping
+ip arp inspection vlan 10,20,30
+!
+ip access-list extended USER-IN
+ remark Allow normal user traffic
+ deny ip any any log-input
+ permit ip any any
+!
+access-list 10 deny 192.0.2.0 0.0.0.255 log-input
+!
+interface GigabitEthernet1/0/1
+ description USER-PORT
+ switchport mode access
+ switchport access vlan 10
+ authentication port-control auto
+ dot1x pae authenticator
+ mab
+ spanning-tree bpduguard enable
+ switchport block unicast
+ ip verify source
+ storm-control broadcast level bps 20000000
+ no shutdown
+!
+interface GigabitEthernet1/0/2
+ description UNUSED-SHUTDOWN
+ switchport mode access
+ switchport access vlan 999
+ authentication port-control auto
+ dot1x pae authenticator
+ mab
+ spanning-tree bpduguard enable
+ switchport block unicast
+ storm-control broadcast level bps 20000000
+ ip verify source
+ shutdown
+!
+interface GigabitEthernet1/0/3
+ description SPARE-NOTCONNECTED
+ switchport mode access
+ switchport access vlan 999
+ authentication port-control auto
+ dot1x pae authenticator
+ mab
+ spanning-tree bpduguard enable
+ switchport block unicast
+ storm-control broadcast level bps 20000000
+ ip verify source
+ shutdown
+!
+interface GigabitEthernet1/0/24
+ description UPLINK
+ switchport mode trunk
+ switchport trunk native vlan 998
+ switchport trunk allowed vlan 10,20,30,999
+ ip dhcp snooping trust
+ ip arp inspection trust
+ no shutdown
+!
+end

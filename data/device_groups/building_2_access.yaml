@@ -1,0 +1,9 @@
+﻿group_name: building_2_access
+profile_name: building_2
+targets:
+  - ip: 10.50.12.25
+    profile_override: null
+    checked: true
+  - ip: 10.50.12.26
+    profile_override: null
+    checked: true

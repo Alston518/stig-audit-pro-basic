@@ -1,0 +1,27 @@
+@startuml
+actor Operator
+participant GUI
+participant RunService
+participant ScanOrchestrator
+participant "Device Worker" as Worker
+participant CommandPolicy
+participant EvidenceStore
+participant CheckEngine
+database SQLite
+Operator -> GUI: Start audit
+GUI -> RunService: create run + snapshots
+RunService -> SQLite: AuditRun / RunDevice
+GUI -> ScanOrchestrator: run(targets, concurrency)
+loop each device, bounded
+  ScanOrchestrator -> Worker: collect
+  Worker -> CommandPolicy: validate every command
+  Worker -> EvidenceStore: atomic UTF-8 writes + SHA-256
+  Worker -> CheckEngine: parse and evaluate
+  Worker -> RunService: outcome, facts, results, artifact links
+  RunService -> SQLite: persist structured records
+  Worker --> GUI: queued ScanEvent
+end
+RunService -> EvidenceStore: finalize device files + manifest
+RunService -> SQLite: final status/counts
+GUI --> Operator: results and history
+@enduml

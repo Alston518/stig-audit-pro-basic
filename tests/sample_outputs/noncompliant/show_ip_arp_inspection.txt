@@ -1,0 +1,12 @@
+﻿Source Mac Validation      : Disabled
+Destination Mac Validation : Disabled
+IP Address Validation      : Disabled
+
+Vlan     Configuration    Operation   ACL Match Static ACL
+----     -------------    ---------   --------- ----------
+10       Enabled          Active
+20       Enabled          Active
+
+Interface        Trust State
+---------        -----------
+Gi1/0/24         Untrusted

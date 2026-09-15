@@ -1,0 +1,6 @@
+﻿Extended IP access list USER-IN
+    10 remark Missing log-input on the deny line below
+    20 deny ip any any
+    30 permit ip any any
+Standard IP access list 10
+    10 deny 192.0.2.0 0.0.0.255 log

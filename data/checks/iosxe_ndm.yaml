@@ -1,0 +1,1292 @@
+schema_version: 1
+library_name: iosxe_ndm
+library_version: "2026.09"
+checks:
+- vuln_id: V-220518
+  stig_id: CISC-ND-000010
+  title: The Cisco switch must be configured to limit the number of concurrent management
+    sessions to an organization-defined number.
+  looking_for: Validate session-limit under every VTY section, or count the available
+    VTY lines when session-limit is unsupported
+  stig_family: IOSXE_NDM
+  severity: cat2
+  check_type: vty_session_limit_policy
+  commands:
+  - show running-config
+  automated: true
+  scope: {}
+  conditions:
+    command: show running-config
+    maximum_sessions_profile_key: max_concurrent_management_sessions
+  result:
+    pass_status: NotAFinding
+    fail_status: Open
+    error_status: Error
+  evidence:
+    include_command_output: false
+    include_failed_objects: true
+    pass_comment: The number of concurrent management sessions does not exceed the
+      organization-defined maximum of {{ max_concurrent_management_sessions }}.
+    fail_comment: The VTY session limit or number of available VTY lines exceeds the
+      organization-defined maximum of {{ max_concurrent_management_sessions }}.
+    error_comment: Concurrent management-session limits could not be evaluated.
+    finding_details_template: default
+- vuln_id: V-220519
+  stig_id: CISC-ND-000090
+  title: The Cisco switch must be configured to automatically audit account creation.
+  looking_for: Ensure archive log configuration auditing is enabled in the correct configuration hierarchy
+  stig_family: IOSXE_NDM
+  severity: cat2
+  check_type: command_pattern_policy
+  commands:
+  - show running-config
+  automated: true
+  scope: {}
+  conditions:
+    all:
+    - command: show running-config
+      pattern: '(?m)^archive[ \t]*$'
+      description: archive configuration section
+    - command: show running-config
+      pattern: '(?m)^archive[ \t]*\r?\n(?:(?:[ \t]+[^\r\n]*)\r?\n)*?[ \t]+log config[ \t]*$'
+      description: log config subsection under archive
+    - command: show running-config
+      pattern: '(?m)^archive[ \t]*\r?\n(?:(?:[ \t]+[^\r\n]*)\r?\n)*?[ \t]+log config[ \t]*\r?\n(?:(?:[ \t]{2,}[^\r\n]*)\r?\n)*?[ \t]{2,}logging enable[ \t]*$'
+      description: logging enable under archive log config
+  result:
+    pass_status: NotAFinding
+    fail_status: Open
+    error_status: Error
+  evidence:
+    include_command_output: false
+    include_failed_objects: true
+    pass_comment: Archive configuration auditing is enabled under the archive log config hierarchy.
+    fail_comment: The archive section, log config subsection, or nested logging enable command is missing.
+    error_comment: Archive configuration auditing could not be evaluated.
+    finding_details_template: default
+- vuln_id: V-220520
+  stig_id: CISC-ND-000100
+  title: The Cisco switch must be configured to automatically audit account modification.
+  looking_for: Ensure archive log configuration auditing is enabled in the correct configuration hierarchy
+  stig_family: IOSXE_NDM
+  severity: cat2
+  check_type: command_pattern_policy
+  commands:
+  - show running-config
+  automated: true
+  scope: {}
+  conditions:
+    all:
+    - command: show running-config
+      pattern: '(?m)^archive[ \t]*$'
+      description: archive configuration section
+    - command: show running-config
+      pattern: '(?m)^archive[ \t]*\r?\n(?:(?:[ \t]+[^\r\n]*)\r?\n)*?[ \t]+log config[ \t]*$'
+      description: log config subsection under archive
+    - command: show running-config
+      pattern: '(?m)^archive[ \t]*\r?\n(?:(?:[ \t]+[^\r\n]*)\r?\n)*?[ \t]+log config[ \t]*\r?\n(?:(?:[ \t]{2,}[^\r\n]*)\r?\n)*?[ \t]{2,}logging enable[ \t]*$'
+      description: logging enable under archive log config
+  result:
+    pass_status: NotAFinding
+    fail_status: Open
+    error_status: Error
+  evidence:
+    include_command_output: false
+    include_failed_objects: true
+    pass_comment: Archive configuration auditing is enabled under the archive log config hierarchy.
+    fail_comment: The archive section, log config subsection, or nested logging enable command is missing.
+    error_comment: Archive configuration auditing could not be evaluated.
+    finding_details_template: default
+- vuln_id: V-220521
+  stig_id: CISC-ND-000110
+  title: The Cisco switch must be configured to automatically audit account disabling
+    actions.
+  looking_for: Ensure archive log configuration auditing is enabled in the correct configuration hierarchy
+  stig_family: IOSXE_NDM
+  severity: cat2
+  check_type: command_pattern_policy
+  commands:
+  - show running-config
+  automated: true
+  scope: {}
+  conditions:
+    all:
+    - command: show running-config
+      pattern: '(?m)^archive[ \t]*$'
+      description: archive configuration section
+    - command: show running-config
+      pattern: '(?m)^archive[ \t]*\r?\n(?:(?:[ \t]+[^\r\n]*)\r?\n)*?[ \t]+log config[ \t]*$'
+      description: log config subsection under archive
+    - command: show running-config
+      pattern: '(?m)^archive[ \t]*\r?\n(?:(?:[ \t]+[^\r\n]*)\r?\n)*?[ \t]+log config[ \t]*\r?\n(?:(?:[ \t]{2,}[^\r\n]*)\r?\n)*?[ \t]{2,}logging enable[ \t]*$'
+      description: logging enable under archive log config
+  result:
+    pass_status: NotAFinding
+    fail_status: Open
+    error_status: Error
+  evidence:
+    include_command_output: false
+    include_failed_objects: true
+    pass_comment: Archive configuration auditing is enabled under the archive log config hierarchy.
+    fail_comment: The archive section, log config subsection, or nested logging enable command is missing.
+    error_comment: Archive configuration auditing could not be evaluated.
+    finding_details_template: default
+- vuln_id: V-220522
+  stig_id: CISC-ND-000120
+  title: The Cisco switch must be configured to automatically audit account removal
+    actions.
+  looking_for: Ensure archive log configuration auditing is enabled in the correct configuration hierarchy
+  stig_family: IOSXE_NDM
+  severity: cat2
+  check_type: command_pattern_policy
+  commands:
+  - show running-config
+  automated: true
+  scope: {}
+  conditions:
+    all:
+    - command: show running-config
+      pattern: '(?m)^archive[ \t]*$'
+      description: archive configuration section
+    - command: show running-config
+      pattern: '(?m)^archive[ \t]*\r?\n(?:(?:[ \t]+[^\r\n]*)\r?\n)*?[ \t]+log config[ \t]*$'
+      description: log config subsection under archive
+    - command: show running-config
+      pattern: '(?m)^archive[ \t]*\r?\n(?:(?:[ \t]+[^\r\n]*)\r?\n)*?[ \t]+log config[ \t]*\r?\n(?:(?:[ \t]{2,}[^\r\n]*)\r?\n)*?[ \t]{2,}logging enable[ \t]*$'
+      description: logging enable under archive log config
+  result:
+    pass_status: NotAFinding
+    fail_status: Open
+    error_status: Error
+  evidence:
+    include_command_output: false
+    include_failed_objects: true
+    pass_comment: Archive configuration auditing is enabled under the archive log config hierarchy.
+    fail_comment: The archive section, log config subsection, or nested logging enable command is missing.
+    error_comment: Archive configuration auditing could not be evaluated.
+    finding_details_template: default
+- vuln_id: V-220523
+  stig_id: CISC-ND-000140
+  title: The Cisco switch must be configured to enforce approved authorizations for
+    controlling the flow of management information within the device based on control
+    policies.
+  looking_for: Require the profile-defined management ACL inbound on every VTY section and permit only profile-approved management networks
+  stig_family: IOSXE_NDM
+  severity: cat2
+  check_type: management_access_policy
+  commands:
+  - show running-config
+  automated: true
+  scope: {}
+  conditions: {}
+  result:
+    pass_status: NotAFinding
+    fail_status: Not_Reviewed
+    error_status: Error
+  evidence:
+    include_command_output: false
+    include_failed_objects: true
+    pass_comment: Every VTY section uses the required inbound management ACL, which permits only the profile-approved management networks.
+    fail_comment: A VTY section is missing the required inbound management ACL, or the ACL permits an unapproved source network.
+    error_comment: VTY management-access controls could not be evaluated.
+    finding_details_template: default
+- vuln_id: V-220524
+  stig_id: CISC-ND-000150
+  title: The Cisco switch must be configured to enforce the limit of three consecutive
+    invalid logon attempts, after which time it must lock out the user account from
+    accessing the device for 15 minutes.
+  looking_for: Ensure login blocking is configured for 900 seconds after three failed attempts within 120 seconds
+  stig_family: IOSXE_NDM
+  severity: cat2
+  check_type: command_pattern_policy
+  commands:
+  - show running-config
+  automated: true
+  scope: {}
+  conditions:
+    all:
+    - command: show running-config
+      pattern: '(?m)^[ \t]*login[ \t]+block-for[ \t]+900[ \t]+attempts[ \t]+3[ \t]+within[ \t]+120[ \t]*$'
+      description: login block-for 900 attempts 3 within 120
+  result:
+    pass_status: NotAFinding
+    fail_status: Open
+    error_status: Error
+  evidence:
+    include_command_output: false
+    include_failed_objects: true
+    pass_comment: Login blocking is configured for 900 seconds after three failed attempts within 120 seconds.
+    fail_comment: The required login block-for 900 attempts 3 within 120 command is missing.
+    error_comment: Login blocking configuration could not be evaluated.
+    finding_details_template: default
+- vuln_id: V-220525
+  stig_id: CISC-ND-000160
+  title: The Cisco switch must be configured to display the Standard Mandatory DoD
+    Notice and Consent Banner before granting access to the device.
+  looking_for: Verify the login banner contains every mandatory DoD notice and consent clause
+  stig_family: IOSXE_NDM
+  severity: cat2
+  check_type: dod_banner_policy
+  commands:
+  - show running-config
+  automated: true
+  scope: {}
+  conditions:
+    command: show running-config
+    banner_type: login
+  result:
+    pass_status: NotAFinding
+    fail_status: Open
+    error_status: Error
+  evidence:
+    include_command_output: false
+    include_failed_objects: true
+    pass_comment: The configured login banner contains all mandatory Standard DoD Notice and Consent clauses.
+    fail_comment: The login banner is missing or does not contain all mandatory Standard DoD Notice and Consent clauses.
+    error_comment: The Standard DoD Notice and Consent banner could not be evaluated.
+    finding_details_template: default
+- vuln_id: V-220526
+  stig_id: CISC-ND-000210
+  title: The Cisco device must be configured to audit all administrator activity.
+  looking_for: Ensure administrator configuration changes generate informational logging messages
+  stig_family: IOSXE_NDM
+  severity: cat2
+  check_type: command_pattern_policy
+  commands:
+  - show running-config
+  automated: true
+  scope: {}
+  conditions:
+    all:
+    - command: show running-config
+      pattern: '(?m)^[ \t]*logging[ \t]+userinfo[ \t]*$'
+      description: logging userinfo
+  result:
+    pass_status: NotAFinding
+    fail_status: Open
+    error_status: Error
+  evidence:
+    include_command_output: false
+    include_failed_objects: true
+    pass_comment: Administrator activity logging is enabled with logging userinfo.
+    fail_comment: The logging userinfo command is missing.
+    error_comment: Administrator activity logging could not be evaluated.
+    finding_details_template: default
+- vuln_id: V-220528
+  stig_id: CISC-ND-000280
+  title: The Cisco switch must produce audit records containing information to establish
+    when (date and time) the events occurred.
+  looking_for: Ensure log messages use millisecond local date and time timestamps with timezone and year
+  stig_family: IOSXE_NDM
+  severity: cat2
+  check_type: command_pattern_policy
+  commands:
+  - show running-config
+  automated: true
+  scope: {}
+  conditions:
+    all:
+    - command: show running-config
+      pattern: '(?m)^[ \t]*service[ \t]+timestamps[ \t]+log[ \t]+datetime[ \t]+msec[ \t]+localtime[ \t]+show-timezone[ \t]*$'
+      description: service timestamps log datetime msec localtime show-timezone
+  result:
+    pass_status: NotAFinding
+    fail_status: Open
+    error_status: Error
+  evidence:
+    include_command_output: false
+    include_failed_objects: true
+    pass_comment: Log messages use millisecond local date and time timestamps with timezone and year.
+    fail_comment: The service timestamps log datetime msec localtime show-timezone year command is missing.
+    error_comment: Log timestamp configuration could not be evaluated.
+    finding_details_template: default
+- vuln_id: V-220529
+  stig_id: CISC-ND-000290
+  title: The Cisco switch must produce audit records containing information to establish
+    where the events occurred.
+  looking_for: Require log-input on every deny statement in each interface-bound IPv4 ACL
+  stig_family: IOSXE_NDM
+  severity: cat2
+  check_type: acl_deny_logging_policy
+  commands:
+  - show running-config
+  - show ip access-lists
+  automated: true
+  scope: {}
+  conditions:
+    deny_statements:
+      interface_bound_only: true
+      include_standard_acls: true
+      include_extended_acls: true
+      include_ipv6_acls: false
+      require_keyword: log-input
+  result:
+    pass_status: NotAFinding
+    fail_status: Open
+    error_status: Error
+  evidence:
+    include_command_output: false
+    include_failed_objects: true
+    pass_comment: Every deny statement in each interface-bound IPv4 ACL includes log-input.
+    fail_comment: One or more deny statements in an interface-bound IPv4 ACL are missing log-input.
+    error_comment: Interface-bound ACL deny logging could not be evaluated.
+    finding_details_template: default
+- vuln_id: V-220530
+  stig_id: CISC-ND-000330
+  title: The Cisco switch must be configured to generate audit records containing
+    the full-text recording of privileged commands.
+  looking_for: Ensure archive log configuration auditing is enabled in the correct configuration hierarchy
+  stig_family: IOSXE_NDM
+  severity: cat2
+  check_type: command_pattern_policy
+  commands:
+  - show running-config
+  automated: true
+  scope: {}
+  conditions:
+    all:
+    - command: show running-config
+      pattern: '(?m)^archive[ \t]*$'
+      description: archive configuration section
+    - command: show running-config
+      pattern: '(?m)^archive[ \t]*\r?\n(?:(?:[ \t]+[^\r\n]*)\r?\n)*?[ \t]+log config[ \t]*$'
+      description: log config subsection under archive
+    - command: show running-config
+      pattern: '(?m)^archive[ \t]*\r?\n(?:(?:[ \t]+[^\r\n]*)\r?\n)*?[ \t]+log config[ \t]*\r?\n(?:(?:[ \t]{2,}[^\r\n]*)\r?\n)*?[ \t]{2,}logging enable[ \t]*$'
+      description: logging enable under archive log config
+  result:
+    pass_status: NotAFinding
+    fail_status: Open
+    error_status: Error
+  evidence:
+    include_command_output: false
+    include_failed_objects: true
+    pass_comment: Archive configuration auditing is enabled under the archive log config hierarchy.
+    fail_comment: The archive section, log config subsection, or nested logging enable command is missing.
+    error_comment: Archive configuration auditing could not be evaluated.
+    finding_details_template: default
+- vuln_id: V-220531
+  stig_id: CISC-ND-000380
+  title: The Cisco switch must be configured to protect audit information from unauthorized
+    modification.
+  looking_for: Logging persistent is not configured; temporarily Not Applicable pending future implementation and validation
+  stig_family: IOSXE_NDM
+  severity: cat2
+  check_type: manual_review
+  commands: []
+  automated: false
+  scope: {}
+  conditions: {}
+  result:
+    pass_status: NotAFinding
+    fail_status: Not_Applicable
+    error_status: Error
+  evidence:
+    include_command_output: false
+    include_failed_objects: false
+    pass_comment: Manual review completed and requirement was marked NotAFinding.
+    fail_comment: Logging persistent is not configured.
+    error_comment: Manual review check could not be prepared.
+    finding_details_template: manual_review
+- vuln_id: V-220532
+  stig_id: CISC-ND-000390
+  title: The Cisco switch must be configured to protect audit information from unauthorized
+    deletion.
+  looking_for: Logging persistent is not configured; temporarily Not Applicable pending future implementation and validation
+  stig_family: IOSXE_NDM
+  severity: cat2
+  check_type: manual_review
+  commands: []
+  automated: false
+  scope: {}
+  conditions: {}
+  result:
+    pass_status: NotAFinding
+    fail_status: Not_Applicable
+    error_status: Error
+  evidence:
+    include_command_output: false
+    include_failed_objects: false
+    pass_comment: Manual review completed and requirement was marked NotAFinding.
+    fail_comment: Logging persistent is not configured.
+    error_comment: Manual review check could not be prepared.
+    finding_details_template: manual_review
+- vuln_id: V-220533
+  stig_id: CISC-ND-000460
+  title: The Cisco switch must be configured to limit privileges to change the software
+    resident within software libraries.
+  looking_for: Logging persistent is not configured; temporarily Not Applicable pending future implementation and validation
+  stig_family: IOSXE_NDM
+  severity: cat2
+  check_type: manual_review
+  commands: []
+  automated: false
+  scope: {}
+  conditions: {}
+  result:
+    pass_status: NotAFinding
+    fail_status: Not_Applicable
+    error_status: Error
+  evidence:
+    include_command_output: false
+    include_failed_objects: false
+    pass_comment: Manual review completed and requirement was marked NotAFinding.
+    fail_comment: Logging persistent is not configured.
+    error_comment: Manual review check could not be prepared.
+    finding_details_template: manual_review
+- vuln_id: V-220534
+  stig_id: CISC-ND-000470
+  title: The Cisco switch must be configured to prohibit the use of all unnecessary
+    and nonsecure functions and services.
+  looking_for: Ensure prohibited and unnecessary services are not enabled in the
+    running configuration
+  stig_family: IOSXE_NDM
+  severity: cat1
+  check_type: command_pattern_policy
+  commands:
+  - show running-config
+  automated: true
+  scope: {}
+  conditions:
+    none:
+    - command: show running-config
+      pattern: '(?m)^[ \t]*(?:boot[ \t]+network|ip[ \t]+boot[ \t]+server|ip[
+        \t]+bootp[ \t]+server|ip[ \t]+dns[ \t]+server|ip[ \t]+identd|ip[ \t]+finger|ip[
+        \t]+http[ \t]+server|ip[ \t]+rcmd[ \t]+rcp-enable|ip[ \t]+rcmd[ \t]+rsh-enable|service[
+        \t]+config|service[ \t]+finger|service[ \t]+tcp-small-servers|service[ \t]+udp-small-servers|service[
+        \t]+pad|service[ \t]+call-home)(?:[ \t]+[^\r\n]*)?[ \t]*$'
+      description: prohibited or unnecessary service is enabled
+  result:
+    pass_status: NotAFinding
+    fail_status: Open
+    error_status: Error
+  evidence:
+    include_command_output: false
+    include_failed_objects: true
+    pass_comment: None of the prohibited or unnecessary services are enabled.
+    fail_comment: One or more prohibited or unnecessary services are enabled.
+    error_comment: The running configuration could not be evaluated for prohibited
+      services.
+    finding_details_template: default
+- vuln_id: V-220535
+  stig_id: CISC-ND-000490
+  title: The Cisco switch must be configured with only one local account to be used
+    as the account of last resort in the event the authentication server is unavailable.
+  looking_for: Require exactly one local username using the profile-defined common-criteria password policy and require the profile-defined TACACS group before local in the default login authentication order
+  stig_family: IOSXE_NDM
+  severity: cat2
+  check_type: command_pattern_policy
+  commands:
+  - show running-config
+  automated: true
+  scope: {}
+  conditions:
+    all:
+    - command: show running-config
+      pattern: '(?m)^[ \t]*username[ \t]+\S+[^\r\n]*$'
+      description: one local username account is configured
+    none:
+    - command: show running-config
+      pattern: '(?m)^[ \t]*username(?=[^\r\n]*$[\s\S]*?^[ \t]*username[ \t]+\S+[^\r\n]*$)'
+      description: multiple local username accounts are configured
+    profile_all:
+    - command: show running-config
+      profile_key: local_password_policy
+      object_type: password_policy
+      escape_item: true
+      pattern_template: '(?m)^[ \t]*username[ \t]+\S+(?:[ \t]+[^\r\n]*?)?[ \t]+common-criteria-policy[ \t]+{{ item }}(?:[ \t]+[^\r\n]*)?[ \t]*$'
+      description_template: local username using common-criteria policy {{ item }}
+    - command: show running-config
+      profile_key: tacacs_group
+      object_type: aaa_authentication
+      escape_item: true
+      pattern_template: '(?m)^[ \t]*aaa[ \t]+authentication[ \t]+login[ \t]+default[ \t]+group[ \t]+{{ item }}[ \t]+local[ \t]*$'
+      description_template: default login authentication uses group {{ item }} before local
+  result:
+    pass_status: NotAFinding
+    fail_status: Open
+    error_status: Error
+  evidence:
+    include_command_output: false
+    include_failed_objects: true
+    pass_comment: Exactly one local account uses the required common-criteria password policy, and the required TACACS group precedes local in the default login authentication order.
+    fail_comment: The local-account count, common-criteria password policy, or default AAA login authentication order is incorrect.
+    error_comment: Local fallback account and AAA authentication configuration could not be evaluated.
+    finding_details_template: default
+- vuln_id: V-220537
+  stig_id: CISC-ND-000550
+  title: The Cisco switch must be configured to enforce a minimum 15-character password
+    length.
+  looking_for: Require min-length 15 under the profile-defined AAA common-criteria password policy
+  stig_family: IOSXE_NDM
+  severity: cat2
+  check_type: command_pattern_policy
+  commands:
+  - show running-config
+  automated: true
+  scope: {}
+  conditions:
+    profile_all:
+    - command: show running-config
+      profile_key: local_password_policy
+      object_type: password_policy
+      escape_item: true
+      pattern_template: '(?m)^[ \t]*aaa[ \t]+common-criteria[ \t]+policy[ \t]+{{ item }}[ \t]*\r?\n(?:(?:[ \t]+[^\r\n]*)\r?\n)*?[ \t]+min-length[ \t]+15[ \t]*$'
+      description_template: min-length 15 under common-criteria policy {{ item }}
+  result:
+    pass_status: NotAFinding
+    fail_status: Open
+    error_status: Error
+  evidence:
+    include_command_output: false
+    include_failed_objects: true
+    pass_comment: The required minimum password length is configured under the profile-defined common-criteria policy.
+    fail_comment: The profile-defined common-criteria policy is missing min-length 15.
+    error_comment: Minimum password length configuration could not be evaluated.
+    finding_details_template: default
+- vuln_id: V-220538
+  stig_id: CISC-ND-000570
+  title: The Cisco switch must be configured to enforce password complexity by requiring
+    that at least one uppercase character be used.
+  looking_for: Require upper-case 1 under the profile-defined AAA common-criteria password policy
+  stig_family: IOSXE_NDM
+  severity: cat2
+  check_type: command_pattern_policy
+  commands:
+  - show running-config
+  automated: true
+  scope: {}
+  conditions:
+    profile_all:
+    - command: show running-config
+      profile_key: local_password_policy
+      object_type: password_policy
+      escape_item: true
+      pattern_template: '(?m)^[ \t]*aaa[ \t]+common-criteria[ \t]+policy[ \t]+{{ item }}[ \t]*\r?\n(?:(?:[ \t]+[^\r\n]*)\r?\n)*?[ \t]+upper-case[ \t]+1[ \t]*$'
+      description_template: upper-case 1 under common-criteria policy {{ item }}
+  result:
+    pass_status: NotAFinding
+    fail_status: Open
+    error_status: Error
+  evidence:
+    include_command_output: false
+    include_failed_objects: true
+    pass_comment: The uppercase-character requirement is configured under the profile-defined common-criteria policy.
+    fail_comment: The profile-defined common-criteria policy is missing upper-case 1.
+    error_comment: Uppercase-character password complexity could not be evaluated.
+    finding_details_template: default
+- vuln_id: V-220539
+  stig_id: CISC-ND-000580
+  title: The Cisco switch must be configured to enforce password complexity by requiring
+    that at least one lowercase character be used.
+  looking_for: Require lower-case 1 under the profile-defined AAA common-criteria password policy
+  stig_family: IOSXE_NDM
+  severity: cat2
+  check_type: command_pattern_policy
+  commands:
+  - show running-config
+  automated: true
+  scope: {}
+  conditions:
+    profile_all:
+    - command: show running-config
+      profile_key: local_password_policy
+      object_type: password_policy
+      escape_item: true
+      pattern_template: '(?m)^[ \t]*aaa[ \t]+common-criteria[ \t]+policy[ \t]+{{ item }}[ \t]*\r?\n(?:(?:[ \t]+[^\r\n]*)\r?\n)*?[ \t]+lower-case[ \t]+1[ \t]*$'
+      description_template: lower-case 1 under common-criteria policy {{ item }}
+  result:
+    pass_status: NotAFinding
+    fail_status: Open
+    error_status: Error
+  evidence:
+    include_command_output: false
+    include_failed_objects: true
+    pass_comment: The lowercase-character requirement is configured under the profile-defined common-criteria policy.
+    fail_comment: The profile-defined common-criteria policy is missing lower-case 1.
+    error_comment: Lowercase-character password complexity could not be evaluated.
+    finding_details_template: default
+- vuln_id: V-220540
+  stig_id: CISC-ND-000590
+  title: The Cisco switch must be configured to enforce password complexity by requiring
+    that at least one numeric character be used.
+  looking_for: Require numeric-count 1 under the profile-defined AAA common-criteria password policy
+  stig_family: IOSXE_NDM
+  severity: cat2
+  check_type: command_pattern_policy
+  commands:
+  - show running-config
+  automated: true
+  scope: {}
+  conditions:
+    profile_all:
+    - command: show running-config
+      profile_key: local_password_policy
+      object_type: password_policy
+      escape_item: true
+      pattern_template: '(?m)^[ \t]*aaa[ \t]+common-criteria[ \t]+policy[ \t]+{{ item }}[ \t]*\r?\n(?:(?:[ \t]+[^\r\n]*)\r?\n)*?[ \t]+numeric-count[ \t]+1[ \t]*$'
+      description_template: numeric-count 1 under common-criteria policy {{ item }}
+  result:
+    pass_status: NotAFinding
+    fail_status: Open
+    error_status: Error
+  evidence:
+    include_command_output: false
+    include_failed_objects: true
+    pass_comment: The numeric-character requirement is configured under the profile-defined common-criteria policy.
+    fail_comment: The profile-defined common-criteria policy is missing numeric-count 1.
+    error_comment: Numeric-character password complexity could not be evaluated.
+    finding_details_template: default
+- vuln_id: V-220541
+  stig_id: CISC-ND-000600
+  title: The Cisco switch must be configured to enforce password complexity by requiring
+    that at least one special character be used.
+  looking_for: Require special-case 1 under the profile-defined AAA common-criteria password policy
+  stig_family: IOSXE_NDM
+  severity: cat2
+  check_type: command_pattern_policy
+  commands:
+  - show running-config
+  automated: true
+  scope: {}
+  conditions:
+    profile_all:
+    - command: show running-config
+      profile_key: local_password_policy
+      object_type: password_policy
+      escape_item: true
+      pattern_template: '(?m)^[ \t]*aaa[ \t]+common-criteria[ \t]+policy[ \t]+{{ item }}[ \t]*\r?\n(?:(?:[ \t]+[^\r\n]*)\r?\n)*?[ \t]+special-case[ \t]+1[ \t]*$'
+      description_template: special-case 1 under common-criteria policy {{ item }}
+  result:
+    pass_status: NotAFinding
+    fail_status: Open
+    error_status: Error
+  evidence:
+    include_command_output: false
+    include_failed_objects: true
+    pass_comment: The special-character requirement is configured under the profile-defined common-criteria policy.
+    fail_comment: The profile-defined common-criteria policy is missing special-case 1.
+    error_comment: Special-character password complexity could not be evaluated.
+    finding_details_template: default
+- vuln_id: V-220542
+  stig_id: CISC-ND-000610
+  title: The Cisco switch must be configured to require that when a password is changed,
+    the characters are changed in at least eight of the positions within the password.
+  looking_for: Require char-changes 8 under the profile-defined AAA common-criteria password policy
+  stig_family: IOSXE_NDM
+  severity: cat2
+  check_type: command_pattern_policy
+  commands:
+  - show running-config
+  automated: true
+  scope: {}
+  conditions:
+    profile_all:
+    - command: show running-config
+      profile_key: local_password_policy
+      object_type: password_policy
+      escape_item: true
+      pattern_template: '(?m)^[ \t]*aaa[ \t]+common-criteria[ \t]+policy[ \t]+{{ item }}[ \t]*\r?\n(?:(?:[ \t]+[^\r\n]*)\r?\n)*?[ \t]+char-changes[ \t]+8[ \t]*$'
+      description_template: char-changes 8 under common-criteria policy {{ item }}
+  result:
+    pass_status: NotAFinding
+    fail_status: Open
+    error_status: Error
+  evidence:
+    include_command_output: false
+    include_failed_objects: true
+    pass_comment: The required password-position changes are configured under the profile-defined common-criteria policy.
+    fail_comment: The profile-defined common-criteria policy is missing char-changes 8.
+    error_comment: Password-position change configuration could not be evaluated.
+    finding_details_template: default
+- vuln_id: V-220543
+  stig_id: CISC-ND-000620
+  title: The Cisco switch must only store cryptographic representations of passwords.
+  looking_for: Ensure service password-encryption is enabled
+  stig_family: IOSXE_NDM
+  severity: cat1
+  check_type: command_pattern_policy
+  commands:
+  - show running-config
+  automated: true
+  scope: {}
+  conditions:
+    all:
+    - command: show running-config
+      pattern: '(?m)^[ \t]*service[ \t]+password-encryption[ \t]*$'
+      description: service password-encryption enabled
+  result:
+    pass_status: NotAFinding
+    fail_status: Open
+    error_status: Error
+  evidence:
+    include_command_output: false
+    include_failed_objects: true
+    pass_comment: Service password encryption is enabled.
+    fail_comment: The service password-encryption command is missing.
+    error_comment: Password-encryption configuration could not be evaluated.
+    finding_details_template: default
+- vuln_id: V-220544
+  stig_id: CISC-ND-000720
+  title: The Cisco switch must be configured to terminate all network connections
+    associated with device management after five minutes of inactivity.
+  looking_for: Require session-timeout 5 or exec-timeout 5 0 under every VTY line
+    section
+  stig_family: IOSXE_NDM
+  severity: cat1
+  check_type: command_pattern_policy
+  commands:
+  - show running-config
+  automated: true
+  scope: {}
+  conditions:
+    all:
+    - command: show running-config
+      pattern: '(?m)^[ \t]*line[ \t]+vty[ \t]+\d+(?:[ \t]+\d+)?[ \t]*$'
+      description: at least one VTY line section is configured
+    none:
+    - command: show running-config
+      pattern: '(?m)^[ \t]*line[ \t]+vty[ \t]+\d+(?:[ \t]+\d+)?[ \t]*\r?\n(?!(?:(?:[
+        \t]+[^\r\n]*)\r?\n)*[ \t]+(?:session-timeout[ \t]+5|exec-timeout[ \t]+5[
+        \t]+0)[ \t]*(?:\r?\n|$))(?:(?:[ \t]+[^\r\n]*)(?:\r?\n|$))*'
+      description: VTY line section missing an approved five-minute inactivity timeout
+  result:
+    pass_status: NotAFinding
+    fail_status: Open
+    error_status: Error
+  evidence:
+    include_command_output: false
+    include_failed_objects: true
+    pass_comment: Every VTY line section has a five-minute inactivity timeout configured.
+    fail_comment: One or more VTY line sections are missing session-timeout 5 or exec-timeout
+      5 0.
+    error_comment: VTY inactivity-timeout configuration could not be evaluated.
+    finding_details_template: default
+- vuln_id: V-220545
+  stig_id: CISC-ND-000880
+  title: The Cisco switch must be configured to automatically audit account enabling
+    actions.
+  looking_for: Ensure archive log configuration auditing is enabled in the correct configuration hierarchy
+  stig_family: IOSXE_NDM
+  severity: cat2
+  check_type: command_pattern_policy
+  commands:
+  - show running-config
+  automated: true
+  scope: {}
+  conditions:
+    all:
+    - command: show running-config
+      pattern: '(?m)^archive[ \t]*$'
+      description: archive configuration section
+    - command: show running-config
+      pattern: '(?m)^archive[ \t]*\r?\n(?:(?:[ \t]+[^\r\n]*)\r?\n)*?[ \t]+log config[ \t]*$'
+      description: log config subsection under archive
+    - command: show running-config
+      pattern: '(?m)^archive[ \t]*\r?\n(?:(?:[ \t]+[^\r\n]*)\r?\n)*?[ \t]+log config[ \t]*\r?\n(?:(?:[ \t]{2,}[^\r\n]*)\r?\n)*?[ \t]{2,}logging enable[ \t]*$'
+      description: logging enable under archive log config
+  result:
+    pass_status: NotAFinding
+    fail_status: Open
+    error_status: Error
+  evidence:
+    include_command_output: false
+    include_failed_objects: true
+    pass_comment: Archive configuration auditing is enabled under the archive log config hierarchy.
+    fail_comment: The archive section, log config subsection, or nested logging enable command is missing.
+    error_comment: Archive configuration auditing could not be evaluated.
+    finding_details_template: default
+- vuln_id: V-220547
+  stig_id: CISC-ND-000980
+  title: The Cisco switch must be configured to allocate audit record storage capacity
+    in accordance with organization-defined audit record storage requirements.
+  looking_for: Ensure logging buffered specifies a numeric buffer size and a valid logging severity level
+  stig_family: IOSXE_NDM
+  severity: cat2
+  check_type: command_pattern_policy
+  commands:
+  - show running-config
+  automated: true
+  scope: {}
+  conditions:
+    all:
+    - command: show running-config
+      pattern: '(?m)^[ \t]*logging[ \t]+buffered[ \t]+\d+[ \t]+(?:emergencies|alerts|critical|errors|warnings|notifications|informational|debugging|[0-7])[ \t]*$'
+      description: logging buffered with numeric size and valid severity level
+  result:
+    pass_status: NotAFinding
+    fail_status: Open
+    error_status: Error
+  evidence:
+    include_command_output: false
+    include_failed_objects: true
+    pass_comment: Logging buffered is configured with a numeric buffer size and valid severity level.
+    fail_comment: A valid logging buffered size and severity level are not configured.
+    error_comment: Buffered logging configuration could not be evaluated.
+    finding_details_template: default
+- vuln_id: V-220548
+  stig_id: CISC-ND-001000
+  title: The Cisco switch must be configured to generate an alert for all audit failure
+    events.
+  looking_for: Ensure remote logging uses a valid named trap severity level
+  stig_family: IOSXE_NDM
+  severity: cat2
+  check_type: command_pattern_policy
+  commands:
+  - show running-config
+  automated: true
+  scope: {}
+  conditions:
+    all:
+    - command: show running-config
+      pattern: '(?m)^[ \t]*logging[ \t]+trap[ \t]+(?:emergencies|alerts|critical|errors|warnings|notifications|informational|debugging)[ \t]*$'
+      description: logging trap with valid named severity level
+  result:
+    pass_status: NotAFinding
+    fail_status: Open
+    error_status: Error
+  evidence:
+    include_command_output: false
+    include_failed_objects: true
+    pass_comment: Remote logging is configured with a valid named trap severity level.
+    fail_comment: A valid named logging trap severity level is not configured.
+    error_comment: Remote logging trap configuration could not be evaluated.
+    finding_details_template: default
+- vuln_id: V-220549
+  stig_id: CISC-ND-001030
+  title: The Cisco switch must be configured to synchronize its clock with the primary
+    and secondary time sources using redundant authoritative time sources.
+  looking_for: Require at least two NTP server commands and every NTP server defined
+    in the selected profile
+  stig_family: IOSXE_NDM
+  severity: cat2
+  check_type: command_pattern_policy
+  commands:
+  - show running-config
+  automated: true
+  scope: {}
+  conditions:
+    all:
+    - command: show running-config
+      pattern: '(?m)^(?=(?:[\s\S]*?^[ \t]*ntp[ \t]+server[ \t]+\S+[^\r\n]*$){2})'
+      description: at least two NTP server commands
+    profile_all:
+    - command: show running-config
+      profile_key: ntp_servers
+      object_type: ntp_server
+      escape_item: true
+      pattern_template: '(?m)^[ \t]*ntp[ \t]+server[ \t]+{{ item }}(?:[ \t]+[^\r\n]*)?[
+        \t]*$'
+      description_template: profile-defined NTP server {{ item }}
+  result:
+    pass_status: NotAFinding
+    fail_status: Open
+    error_status: Error
+  evidence:
+    include_command_output: false
+    include_failed_objects: true
+    pass_comment: At least two profile-defined authoritative NTP servers are configured.
+    fail_comment: Fewer than two NTP servers are configured or a profile-defined NTP
+      server is missing.
+    error_comment: NTP server configuration could not be evaluated.
+    finding_details_template: default
+- vuln_id: V-220552
+  stig_id: CISC-ND-001130
+  title: The Cisco switch must be configured to authenticate SNMP messages using a
+    FIPS-validated Keyed-Hash Message Authentication Code (HMAC).
+  looking_for: Require at least one SNMPv3 user using SHA or a supported SHA-2 authentication
+    protocol
+  stig_family: IOSXE_NDM
+  severity: cat2
+  check_type: command_pattern_policy
+  commands:
+  - show snmp user
+  automated: true
+  scope: {}
+  conditions:
+    all:
+    - command: show snmp user
+      pattern: '(?m)^[ \t]*Authentication Protocol:[ \t]*(?:HMAC[ \t-]*)?(?:SHA(?:-?1)?|SHA-?(?:256|384|512)|SHA-?2-?(?:256|384|512))[
+        \t]*$'
+      description: FIPS-acceptable SNMPv3 HMAC authentication protocol
+  result:
+    pass_status: NotAFinding
+    fail_status: Open
+    error_status: Error
+  evidence:
+    include_command_output: false
+    include_failed_objects: true
+    pass_comment: At least one SNMPv3 user uses a FIPS-acceptable SHA-based HMAC authentication
+      protocol.
+    fail_comment: No SNMPv3 user using an approved SHA-based HMAC authentication protocol
+      was found.
+    error_comment: SNMPv3 authentication configuration could not be evaluated.
+    finding_details_template: default
+- vuln_id: V-220553
+  stig_id: CISC-ND-001140
+  title: The Cisco switch must be configured to encrypt SNMP messages using a FIPS
+    140-2 approved algorithm.
+  looking_for: Require at least one SNMPv3 user using AES-128, AES-192, or AES-256
+    privacy
+  stig_family: IOSXE_NDM
+  severity: cat2
+  check_type: command_pattern_policy
+  commands:
+  - show snmp user
+  automated: true
+  scope: {}
+  conditions:
+    all:
+    - command: show snmp user
+      pattern: '(?m)^[ \t]*Privacy Protocol:[ \t]*AES[ \t-]*(?:128|192|256)[ \t]*$'
+      description: FIPS-approved AES SNMPv3 privacy protocol
+  result:
+    pass_status: NotAFinding
+    fail_status: Open
+    error_status: Error
+  evidence:
+    include_command_output: false
+    include_failed_objects: true
+    pass_comment: At least one SNMPv3 user uses a FIPS-approved AES privacy protocol.
+    fail_comment: No SNMPv3 user using AES-128, AES-192, or AES-256 privacy was found.
+    error_comment: SNMPv3 privacy configuration could not be evaluated.
+    finding_details_template: default
+- vuln_id: V-220554
+  stig_id: CISC-ND-001150
+  title: The Cisco switch must be configured to authenticate Network Time Protocol
+    (NTP) sources using authentication that is cryptographically based.
+  looking_for: Require every profile-defined NTP server to use a trusted HMAC-SHA2-256 authentication key
+  stig_family: IOSXE_NDM
+  severity: cat2
+  check_type: ntp_authentication_policy
+  commands:
+  - show running-config
+  automated: true
+  scope: {}
+  conditions:
+    command: show running-config
+    ntp_servers_profile_key: ntp_servers
+    minimum_servers: 2
+    approved_algorithms:
+    - hmac-sha2-256  
+    result:
+    pass_status: NotAFinding
+    fail_status: Open
+    error_status: Error
+  evidence:
+    include_command_output: false
+    include_failed_objects: true
+    pass_comment: Every profile-defined NTP server uses a trusted HMAC-SHA2-256 authentication key and global NTP authentication is enabled.
+    fail_comment: Global NTP authentication is disabled, or one or more profile-defined NTP servers do not use a trusted HMAC-SHA2-256 key.
+    error_comment: NTP source authentication could not be evaluated.
+    finding_details_template: default
+- vuln_id: V-220555
+  stig_id: CISC-ND-001200
+  title: The Cisco switch must be configured to use FIPS-validated Keyed-Hash Message
+    Authentication Code (HMAC) to protect the integrity of remote maintenance sessions.
+  looking_for: Require the approved SSH HMAC algorithms in the configured order
+  stig_family: IOSXE_NDM
+  severity: cat1
+  check_type: command_pattern_policy
+  commands:
+  - show running-config | include ssh
+  automated: true
+  scope: {}
+  conditions:
+    all:
+    - command: show running-config | include ssh
+      pattern: '(?m)^[ \t]*ip[ \t]+ssh[ \t]+server[ \t]+algorithm[ \t]+mac[ \t]+hmac-sha2-512[
+        \t]+hmac-sha2-256[ \t]*$'
+      description: approved SSH HMAC algorithm list
+  result:
+    pass_status: NotAFinding
+    fail_status: Open
+    error_status: Error
+  evidence:
+    include_command_output: false
+    include_failed_objects: true
+    pass_comment: SSH uses the approved HMAC-SHA2 integrity algorithms in the required
+      order.
+    fail_comment: The required SSH HMAC algorithm list is missing or incorrect.
+    error_comment: SSH HMAC configuration could not be evaluated.
+    finding_details_template: default
+- vuln_id: V-220556
+  stig_id: CISC-ND-001210
+  title: The Cisco switch must be configured to implement cryptographic mechanisms
+    to protect the confidentiality of remote maintenance sessions.
+  looking_for: Require the approved SSH AES-CTR encryption algorithms in the configured
+    order
+  stig_family: IOSXE_NDM
+  severity: cat1
+  check_type: command_pattern_policy
+  commands:
+  - show running-config | include ssh
+  automated: true
+  scope: {}
+  conditions:
+    all:
+    - command: show running-config | include ssh
+      pattern: '(?m)^[ \t]*ip[ \t]+ssh[ \t]+server[ \t]+algorithm[ \t]+encryption[
+        \t]+aes256-ctr[ \t]+aes192-ctr[ \t]+aes128-ctr[ \t]*$'
+      description: approved SSH AES-CTR encryption algorithm list
+  result:
+    pass_status: NotAFinding
+    fail_status: Open
+    error_status: Error
+  evidence:
+    include_command_output: false
+    include_failed_objects: true
+    pass_comment: SSH uses the approved AES-CTR encryption algorithms in the required
+      order.
+    fail_comment: The required SSH AES-CTR encryption algorithm list is missing or
+      incorrect.
+    error_comment: SSH encryption configuration could not be evaluated.
+    finding_details_template: default
+- vuln_id: V-220559
+  stig_id: CISC-ND-001250
+  title: The Cisco switch must be configured to generate log records when administrator
+    privileges are deleted.
+  looking_for: Ensure archive log configuration auditing is enabled in the correct configuration hierarchy
+  stig_family: IOSXE_NDM
+  severity: cat2
+  check_type: command_pattern_policy
+  commands:
+  - show running-config
+  automated: true
+  scope: {}
+  conditions:
+    all:
+    - command: show running-config
+      pattern: '(?m)^archive[ \t]*$'
+      description: archive configuration section
+    - command: show running-config
+      pattern: '(?m)^archive[ \t]*\r?\n(?:(?:[ \t]+[^\r\n]*)\r?\n)*?[ \t]+log config[ \t]*$'
+      description: log config subsection under archive
+    - command: show running-config
+      pattern: '(?m)^archive[ \t]*\r?\n(?:(?:[ \t]+[^\r\n]*)\r?\n)*?[ \t]+log config[ \t]*\r?\n(?:(?:[ \t]{2,}[^\r\n]*)\r?\n)*?[ \t]{2,}logging enable[ \t]*$'
+      description: logging enable under archive log config
+  result:
+    pass_status: NotAFinding
+    fail_status: Open
+    error_status: Error
+  evidence:
+    include_command_output: false
+    include_failed_objects: true
+    pass_comment: Archive configuration auditing is enabled under the archive log config hierarchy.
+    fail_comment: The archive section, log config subsection, or nested logging enable command is missing.
+    error_comment: Archive configuration auditing could not be evaluated.
+    finding_details_template: default
+- vuln_id: V-220560
+  stig_id: CISC-ND-001260
+  title: The Cisco switch must be configured to generate audit records when successful/unsuccessful
+    logon attempts occur.
+  looking_for: Ensure successful and failed login attempts are logged
+  stig_family: IOSXE_NDM
+  severity: cat2
+  check_type: command_pattern_policy
+  commands:
+  - show running-config
+  automated: true
+  scope: {}
+  conditions:
+    all:
+    - command: show running-config
+      pattern: '(?m)^[ \t]*login[ \t]+on-success[ \t]+log(?:[ \t]+[^\r\n]+)?[ \t]*$'
+      description: login on-success log
+    - command: show running-config
+      pattern: '(?m)^[ \t]*login[ \t]+on-failure[ \t]+log(?:[ \t]+[^\r\n]+)?[ \t]*$'
+      description: login on-failure log
+  result:
+    pass_status: NotAFinding
+    fail_status: Open
+    error_status: Error
+  evidence:
+    include_command_output: false
+    include_failed_objects: true
+    pass_comment: Successful and failed login attempts are configured for logging.
+    fail_comment: Login success logging, login failure logging, or both are missing.
+    error_comment: Login attempt logging could not be evaluated.
+    finding_details_template: default
+- vuln_id: V-220561
+  stig_id: CISC-ND-001270
+  title: The Cisco switch must be configured to generate log records for privileged
+    activities.
+  looking_for: Ensure archive log configuration auditing is enabled in the correct configuration hierarchy
+  stig_family: IOSXE_NDM
+  severity: cat2
+  check_type: command_pattern_policy
+  commands:
+  - show running-config
+  automated: true
+  scope: {}
+  conditions:
+    all:
+    - command: show running-config
+      pattern: '(?m)^archive[ \t]*$'
+      description: archive configuration section
+    - command: show running-config
+      pattern: '(?m)^archive[ \t]*\r?\n(?:(?:[ \t]+[^\r\n]*)\r?\n)*?[ \t]+log config[ \t]*$'
+      description: log config subsection under archive
+    - command: show running-config
+      pattern: '(?m)^archive[ \t]*\r?\n(?:(?:[ \t]+[^\r\n]*)\r?\n)*?[ \t]+log config[ \t]*\r?\n(?:(?:[ \t]{2,}[^\r\n]*)\r?\n)*?[ \t]{2,}logging enable[ \t]*$'
+      description: logging enable under archive log config
+  result:
+    pass_status: NotAFinding
+    fail_status: Open
+    error_status: Error
+  evidence:
+    include_command_output: false
+    include_failed_objects: true
+    pass_comment: Archive configuration auditing is enabled under the archive log config hierarchy.
+    fail_comment: The archive section, log config subsection, or nested logging enable command is missing.
+    error_comment: Archive configuration auditing could not be evaluated.
+    finding_details_template: default
+- vuln_id: V-220565
+  stig_id: CISC-ND-001370
+  title: The Cisco switch must be configured to use at least two authentication servers
+    for the purpose of authenticating users prior to granting administrative access.
+  looking_for: Require at least two profile-defined RADIUS server blocks with the
+    correct address, authentication port, accounting port, key, and AAA group membership
+  stig_family: IOSXE_NDM
+  severity: cat1
+  check_type: radius_server_policy
+  commands:
+  - show running-config
+  automated: true
+  scope: {}
+  conditions:
+    radius_group_profile_key: endpoint_authentication.radius_group
+    radius_servers_profile_key: endpoint_authentication.radius_servers
+    radius_addresses_profile_key: endpoint_authentication.radius_server_addresses
+    auth_port: 1812
+    acct_port: 1813
+  result:
+    pass_status: NotAFinding
+    fail_status: Open
+    error_status: Error
+  evidence:
+    include_command_output: false
+    include_failed_objects: true
+    pass_comment: At least two profile-defined RADIUS servers have the required addresses,
+      ports, keys, and AAA group membership.
+    fail_comment: One or more required RADIUS server definitions, addresses, ports,
+      keys, or AAA group memberships are missing or incorrect.
+    error_comment: RADIUS authentication-server configuration could not be evaluated.
+    finding_details_template: default
+- vuln_id: V-220566
+  stig_id: CISC-ND-001410
+  title: The Cisco switch must be configured to support organizational requirements
+    to conduct backups of the configuration when changes occur.
+  looking_for: Temporarily mark NotAFinding because configuration backups are performed
+    through Cisco Catalyst Center
+  stig_family: IOSXE_NDM
+  severity: cat2
+  check_type: manual_review
+  commands: []
+  automated: false
+  scope: {}
+  conditions: {}
+  result:
+    pass_status: NotAFinding
+    fail_status: NotAFinding
+    error_status: Error
+  evidence:
+    include_command_output: false
+    include_failed_objects: false
+    pass_comment: Configuration backups are performed through Cisco Catalyst Center.
+    fail_comment: Configuration backups are performed through Cisco Catalyst Center.
+    error_comment: Cisco Catalyst Center backup handling could not be documented.
+    finding_details_template: manual_review
+- vuln_id: V-220567
+  stig_id: CISC-ND-001440
+  title: The Cisco switch must be configured to obtain its public key certificates
+    from an appropriate certificate policy through an approved service provider.
+  looking_for: Not Applicable because these access switches do not use organization-managed public key certificates
+  stig_family: IOSXE_NDM
+  severity: cat2
+  check_type: manual_review
+  commands: []
+  automated: false
+  scope: {}
+  conditions: {}
+  result:
+    pass_status: NotAFinding
+    fail_status: Not_Applicable
+    error_status: Error
+  evidence:
+    include_command_output: false
+    include_failed_objects: false
+    pass_comment: The switch uses organization-managed public key certificates obtained through an approved certificate policy or service provider.
+    fail_comment: Not Applicable. The switch does not use organization-managed public key certificates. Only Cisco factory-installed/default certificates and trustpoints are present. No locally configured CA enrollment trustpoint or certificate-based management service is used.
+    error_comment: Public key certificate applicability could not be documented.
+    finding_details_template: manual_review
+- vuln_id: V-220568
+  stig_id: CISC-ND-001450
+  title: The Cisco switch must be configured to send log data to at least two central
+    log servers for the purpose of forwarding alerts to the administrators and the
+    information system security officer (ISSO).
+  looking_for: Require at least two logging host commands and every logging server defined in the selected profile
+  stig_family: IOSXE_NDM
+  severity: cat1
+  check_type: command_pattern_policy
+  commands:
+  - show running-config
+  automated: true
+  scope: {}
+  conditions:
+    all:
+    - command: show running-config
+      pattern: '(?m)^(?=(?:[\s\S]*?^[ \t]*logging host[ \t]+\S+[^\r\n]*$){2})'
+      description: at least two logging host commands
+    profile_all:
+    - command: show running-config
+      profile_key: logging_servers
+      object_type: logging_server
+      escape_item: true
+      pattern_template: '(?m)^[ \t]*logging host[ \t]+{{ item }}(?:[ \t]+[^\r\n]*)?[ \t]*$'
+      description_template: profile-defined logging server {{ item }}
+  result:
+    pass_status: NotAFinding
+    fail_status: Open
+    error_status: Error
+  evidence:
+    include_command_output: false
+    include_failed_objects: true
+    pass_comment: At least two profile-defined central logging servers are configured.
+    fail_comment: Fewer than two logging hosts are configured or a profile-defined logging server is missing.
+    error_comment: Central logging server configuration could not be evaluated.
+    finding_details_template: default
+- vuln_id: V-220569
+  stig_id: CISC-ND-001470
+  title: The Cisco switch must be running an IOS release that is currently supported
+    by Cisco Systems.
+  looking_for: Match the installed IOS-XE release against the profile-defined list
+    of approved Cisco-supported versions
+  stig_family: IOSXE_NDM
+  severity: cat1
+  check_type: command_pattern_policy
+  commands:
+  - show version
+  automated: true
+  scope: {}
+  conditions:
+    profile_any:
+    - command: show version
+      profile_key: supported_iosxe_versions
+      object_type: iosxe_version
+      escape_item: true
+      pattern_template: '(?mi)^[^\r\n]*\bVersion[ \t]+{{ item }}(?=[,\t ]|$)[^\r\n]*$'
+      description_template: profile-approved IOS-XE version {{ item }}
+  result:
+    pass_status: NotAFinding
+    fail_status: Open
+    error_status: Error
+  evidence:
+    include_command_output: false
+    include_failed_objects: true
+    pass_comment: The installed IOS-XE release matches a profile-defined version confirmed
+      to be supported by Cisco.
+    fail_comment: The installed IOS-XE release is not in the profile-defined list of
+      Cisco-supported versions.
+    error_comment: The installed IOS-XE release could not be evaluated.
+    finding_details_template: default
