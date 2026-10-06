@@ -109,7 +109,7 @@ class TargetsTab(PageFrame):
         single_row.grid(row=1, column=0, sticky="ew", padx=10, pady=(0, 6))
         single_row.grid_columnconfigure(1, weight=1)
         ctk.CTkLabel(single_row, text="Single IP", width=68, anchor="w").grid(row=0, column=0, sticky="w", padx=(0, 6))
-        self.single_ip = ctk.CTkEntry(single_row, placeholder_text="10.50.10.25", height=28)
+        self.single_ip = ctk.CTkEntry(single_row, placeholder_text="192.0.2.25", height=28)
         self.single_ip.grid(row=0, column=1, sticky="ew", padx=(0, 6))
         self.single_ip.bind("<Return>", lambda _event: self.add_single_ip())
         ctk.CTkButton(single_row, text="Add", width=72, height=28, command=self.add_single_ip).grid(row=0, column=2)

@@ -9,7 +9,7 @@ def test_disabled_notconnect_ports_must_be_shutdown_and_unused_vlan_passes():
     result = engine.evaluate(
         check_by_vuln("V-220667"),
         outputs=load_outputs("compliant"),
-        ip="10.50.10.25",
+        ip="192.0.2.25",
     )
 
     assert result.status == "NotAFinding"
@@ -25,10 +25,10 @@ def test_disabled_notconnect_ports_must_be_shutdown_and_unused_vlan_fails():
     result = engine.evaluate(
         check_by_vuln("V-220667"),
         outputs=load_outputs("noncompliant"),
-        ip="10.50.10.26",
+        ip="192.0.2.26",
     )
 
     assert result.status == "Open"
     assert [obj.object_name for obj in result.failed_objects] == ["GigabitEthernet1/0/2"]
     assert "shutdown configured" in result.failed_objects[0].details
-    assert "unused VLAN 999 assigned" in result.failed_objects[0].details
+    assert "unused VLAN 997 assigned" in result.failed_objects[0].details

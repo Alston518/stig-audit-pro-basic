@@ -1,6 +1,6 @@
 ﻿exceptions:
   - hostname: SW-ACCESS-01
-    ip: 10.50.10.25
+    ip: 192.0.2.25
     vuln_id: CISC-L2-000210
     object_type: interface
     object_name: GigabitEthernet1/0/48

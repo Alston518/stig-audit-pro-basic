@@ -47,7 +47,7 @@ CKL_TEMPLATE = """\
 
 def _result(vuln_id: str, status: str) -> CheckResult:
     return CheckResult(
-        ip="172.16.100.55",
+        ip="192.0.2.55",
         hostname="ACCESS-SW01",
         vuln_id=vuln_id,
         stig_family="IOSXE_L2",
@@ -101,22 +101,22 @@ interface Vlan300
 """
     }
 
-    asset = extract_ckl_asset(outputs, "172.16.100.55", management_vlan=300)
+    asset = extract_ckl_asset(outputs, "192.0.2.55", management_vlan=300)
 
     assert asset.hostname == "ACCESS-SW01"
     assert asset.fqdn == "ACCESS-SW01.example.mil"
     assert asset.management_ip == "192.0.2.30"
-    assert asset.scan_ip == "172.16.100.55"
+    assert asset.scan_ip == "192.0.2.55"
 
 
 def test_extract_ckl_asset_falls_back_to_scan_ip_without_management_svi():
     asset = extract_ckl_asset(
         {"show running-config": "hostname ACCESS-SW02\n"},
-        "172.16.100.56",
+        "192.0.2.56",
         management_vlan=300,
     )
 
-    assert asset.management_ip == "172.16.100.56"
+    assert asset.management_ip == "192.0.2.56"
 
 
 def test_write_completed_ckl_populates_asset_results_and_preserves_template(tmp_path):
@@ -132,7 +132,7 @@ interface Vlan300
 !
 """
         },
-        "172.16.100.55",
+        "192.0.2.55",
     )
 
     summary = write_completed_ckl(
@@ -165,7 +165,7 @@ def test_checklist_vuln_ids_and_unmatched_results(tmp_path):
     source = tmp_path / "blank.ckl"
     destination = tmp_path / "completed.ckl"
     source.write_text(CKL_TEMPLATE, encoding="utf-8")
-    asset = extract_ckl_asset({}, "172.16.100.55")
+    asset = extract_ckl_asset({}, "192.0.2.55")
 
     assert checklist_vuln_ids(source) == {"V-220665", "V-220666"}
     summary = write_completed_ckl(

@@ -75,10 +75,10 @@ def test_check_result_traceability_fields_are_report_independent() -> None:
         status="Open",
         commands_used=["show running-config"],
         evidence_artifact_ids=[7],
-        profile_values_used={"native_vlan": 333},
+        profile_values_used={"native_vlan": 20},
         evaluation_reason="Required configuration was absent.",
         parser_warnings=["One interface block was incomplete."],
     )
     assert result.evidence_artifact_ids == [7]
-    assert result.profile_values_used["native_vlan"] == 333
+    assert result.profile_values_used["native_vlan"] == 20
     assert not result.passed

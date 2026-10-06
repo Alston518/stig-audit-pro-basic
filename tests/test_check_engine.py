@@ -13,7 +13,7 @@ def _results_by_vuln(kind: str):
     results = engine.evaluate_all(
         load_l2_checks(),
         outputs=load_outputs(kind),
-        ip="10.50.10.25" if kind == "compliant" else "10.50.10.26",
+        ip="192.0.2.25" if kind == "compliant" else "192.0.2.26",
     )
     return {result.vuln_id: result for result in results}
 
@@ -113,7 +113,7 @@ interface Vlan20
 """
     }
 
-    result = engine.evaluate(check, outputs=outputs, ip="10.50.10.25")
+    result = engine.evaluate(check, outputs=outputs, ip="192.0.2.25")
 
     assert result.status == "NotAFinding"
 
@@ -125,7 +125,7 @@ def test_igmp_mld_snooping_check_detects_global_and_vlan_disables():
     compliant = engine.evaluate(
         check,
         outputs={"show running-config": "hostname ACCESS-SW01\nip igmp snooping\n"},
-        ip="10.50.10.25",
+        ip="192.0.2.25",
     )
     assert compliant.status == "NotAFinding"
 
@@ -140,7 +140,7 @@ def test_igmp_mld_snooping_check_detects_global_and_vlan_disables():
         result = engine.evaluate(
             check,
             outputs={"show running-config": f"hostname ACCESS-SW01\n{command}\n"},
-            ip="10.50.10.26",
+            ip="192.0.2.26",
         )
         assert result.status == "Open", command
 
@@ -180,7 +180,7 @@ interface GigabitEthernet1/0/1
 !
 interface GigabitEthernet1/0/2
  switchport mode access
- switchport access vlan 999
+ switchport access vlan 997
  shutdown
 !
 interface GigabitEthernet1/0/3
@@ -196,13 +196,13 @@ interface GigabitEthernet1/0/4
         "show interfaces status": """\
 Port      Name               Status       Vlan       Duplex  Speed Type
 Gi1/0/1   DOT1X              notconnect   10         auto    auto  10/100/1000BaseTX
-Gi1/0/2   UNUSED             disabled     999        auto    auto  10/100/1000BaseTX
+Gi1/0/2   UNUSED             disabled     997        auto    auto  10/100/1000BaseTX
 Gi1/0/3   BAD-UNUSED         disabled     10         auto    auto  10/100/1000BaseTX
 Gi1/0/4   USER               connected    10         a-full  a-100 10/100/1000BaseTX
 """,
     }
 
-    result = engine.evaluate(check, outputs=outputs, ip="10.50.10.25")
+    result = engine.evaluate(check, outputs=outputs, ip="192.0.2.25")
 
     assert result.status == "Open"
     assert [finding.object_name for finding in result.failed_objects] == ["GigabitEthernet1/0/3"]
@@ -256,7 +256,7 @@ Gi1/0/48  SFP-UPLINK         connected    trunk      a-full  a-1G  1000BaseSX SF
 """,
     }
 
-    result = engine.evaluate(check, outputs=outputs, ip="10.50.10.25")
+    result = engine.evaluate(check, outputs=outputs, ip="192.0.2.25")
 
     assert result.status == "Open"
     assert [finding.object_name for finding in result.failed_objects] == ["GigabitEthernet1/0/2"]
@@ -268,8 +268,8 @@ def test_endpoint_authentication_policy_reports_interface_and_radius_failures():
     test_check = next(check for check in load_l2_checks() if check.vuln_id == "V-220649")
     outputs = {
         "show running-config": """\
-aaa group server radius ISE-RADIUS
- server name ISE1-EDU-01
+aaa group server radius EXAMPLE-RADIUS
+ server name RADIUS-SERVER-1
 !
 interface GigabitEthernet1/0/1
  switchport mode access
@@ -289,12 +289,12 @@ Gi1/0/2   USER2              connected    10         a-full  a-100 10/100/1000Ba
 """,
     }
 
-    result = engine.evaluate(test_check, outputs=outputs, ip="10.50.10.25")
+    result = engine.evaluate(test_check, outputs=outputs, ip="192.0.2.25")
 
     assert result.status == "Open"
     failures = {(finding.object_type, finding.object_name) for finding in result.failed_objects}
     assert ("interface", "GigabitEthernet1/0/2") in failures
-    assert ("radius_server", "ISE2-EDU-02") in failures
+    assert ("radius_server", "RADIUS-SERVER-2") in failures
 
 
 def test_endpoint_authentication_policy_passes_complete_configuration():
@@ -302,9 +302,9 @@ def test_endpoint_authentication_policy_passes_complete_configuration():
     test_check = next(check for check in load_l2_checks() if check.vuln_id == "V-220649")
     outputs = {
         "show running-config": """\
-aaa group server radius ISE-RADIUS
- server name ISE1-EDU-01
- server name ISE2-EDU-02
+aaa group server radius EXAMPLE-RADIUS
+ server name RADIUS-SERVER-1
+ server name RADIUS-SERVER-2
 !
 interface GigabitEthernet1/0/1
  switchport mode access
@@ -319,7 +319,7 @@ Gi1/0/1   USER1              connected    10         a-full  a-100 10/100/1000Ba
 """,
     }
 
-    result = engine.evaluate(test_check, outputs=outputs, ip="10.50.10.25")
+    result = engine.evaluate(test_check, outputs=outputs, ip="192.0.2.25")
 
     assert result.status == "NotAFinding"
     assert result.failed_objects == []
@@ -334,18 +334,18 @@ def test_native_vlan_assignment_policy_uses_profile_vlan_and_reports_port():
         "show interfaces status": """\
 Port      Name               Status       Vlan       Duplex  Speed Type
 Gi1/0/1   USER               connected    10         a-full  a-100 10/100/1000BaseTX
-Gi1/0/2   BAD-NATIVE         notconnect   333        auto    auto  10/100/1000BaseTX
+Gi1/0/2   BAD-NATIVE         notconnect   20         auto    auto  10/100/1000BaseTX
 Gi1/0/24  UPLINK             connected    trunk      a-full  a-1G  1000BaseSX
 """
     }
 
-    result = engine.evaluate(test_check, outputs=outputs, ip="10.50.10.25")
+    result = engine.evaluate(test_check, outputs=outputs, ip="192.0.2.25")
 
     assert result.status == "Open"
     assert [finding.object_name for finding in result.failed_objects] == [
         "GigabitEthernet1/0/2"
     ]
-    assert "access VLAN matches native VLAN 333" in result.failed_objects[0].details
+    assert "access VLAN matches native VLAN 20" in result.failed_objects[0].details
 
 
 def test_native_vlan_assignment_policy_passes_when_vlan_is_unused():
@@ -357,12 +357,12 @@ def test_native_vlan_assignment_policy_passes_when_vlan_is_unused():
         "show interfaces status": """\
 Port      Name               Status       Vlan       Duplex  Speed Type
 Gi1/0/1   USER               connected    10         a-full  a-100 10/100/1000BaseTX
-Gi1/0/2   UNUSED             disabled     999        auto    auto  10/100/1000BaseTX
+Gi1/0/2   UNUSED             disabled     997        auto    auto  10/100/1000BaseTX
 Gi1/0/24  UPLINK             connected    trunk      a-full  a-1G  1000BaseSX
 """
     }
 
-    result = engine.evaluate(test_check, outputs=outputs, ip="10.50.10.25")
+    result = engine.evaluate(test_check, outputs=outputs, ip="192.0.2.25")
 
     assert result.status == "NotAFinding"
     assert result.failed_objects == []
@@ -377,7 +377,7 @@ def test_native_vlan_assignment_policy_errors_when_status_output_is_empty():
     result = engine.evaluate(
         test_check,
         outputs={"show interfaces status": ""},
-        ip="10.50.10.25",
+        ip="192.0.2.25",
     )
 
     assert result.status == "Error"
@@ -395,7 +395,7 @@ interface Vlan1
 """
     }
 
-    result = engine.evaluate(check, outputs=outputs, ip="10.50.10.26")
+    result = engine.evaluate(check, outputs=outputs, ip="192.0.2.26")
 
     assert result.status == "Open"
 
@@ -421,7 +421,7 @@ Interface: GigabitEthernet1/0/24, Port ID (outgoing port): TenGigabitEthernet1/0
 """,
     }
 
-    result = engine.evaluate(check, outputs=outputs, ip="10.50.10.25")
+    result = engine.evaluate(check, outputs=outputs, ip="192.0.2.25")
 
     assert result.status == "NotAFinding"
     assert {obj.object_name for obj in result.passed_objects} == {
@@ -445,7 +445,7 @@ Interface: GigabitEthernet1/0/24, Port ID (outgoing port): TenGigabitEthernet1/0
 """,
     }
 
-    result = engine.evaluate(check, outputs=outputs, ip="10.50.10.25")
+    result = engine.evaluate(check, outputs=outputs, ip="192.0.2.25")
 
     assert result.status == "NotAFinding"
     assert result.failed_objects == []
@@ -491,12 +491,12 @@ logging enable
     compliant_results = engine.evaluate_all(
         checks,
         outputs={"show running-config": compliant_output},
-        ip="10.50.10.25",
+        ip="192.0.2.25",
     )
     misplaced_results = engine.evaluate_all(
         checks,
         outputs={"show running-config": misplaced_output},
-        ip="10.50.10.26",
+        ip="192.0.2.26",
     )
 
     assert len(compliant_results) == len(archive_check_ids)
@@ -723,25 +723,25 @@ def test_local_fallback_account_uses_policy_and_tacacs_first_order():
     configurations = {
         "compliant": (
             "username admin privilege 15 common-criteria-policy "
-            "PASSWORD_POLICY password 7 HASH\n"
-            "aaa authentication login default group ISE-TACACS local\n"
+            "EXAMPLE-PASSWORD-POLICY password 7 HASH\n"
+            "aaa authentication login default group EXAMPLE-TACACS local\n"
         ),
         "two_accounts": (
             "username admin privilege 15 common-criteria-policy "
-            "PASSWORD_POLICY password 7 HASH1\n"
+            "EXAMPLE-PASSWORD-POLICY password 7 HASH1\n"
             "username backup privilege 15 common-criteria-policy "
-            "PASSWORD_POLICY password 7 HASH2\n"
-            "aaa authentication login default group ISE-TACACS local\n"
+            "EXAMPLE-PASSWORD-POLICY password 7 HASH2\n"
+            "aaa authentication login default group EXAMPLE-TACACS local\n"
         ),
         "wrong_policy": (
             "username admin privilege 15 common-criteria-policy "
             "OTHER_POLICY password 7 HASH\n"
-            "aaa authentication login default group ISE-TACACS local\n"
+            "aaa authentication login default group EXAMPLE-TACACS local\n"
         ),
         "wrong_order": (
             "username admin privilege 15 common-criteria-policy "
-            "PASSWORD_POLICY password 7 HASH\n"
-            "aaa authentication login default local group ISE-TACACS\n"
+            "EXAMPLE-PASSWORD-POLICY password 7 HASH\n"
+            "aaa authentication login default local group EXAMPLE-TACACS\n"
         ),
     }
 
@@ -782,7 +782,7 @@ def test_common_criteria_controls_require_commands_inside_named_policy():
     ]
     engine = CheckEngine(load_profile())
     compliant = """\
-aaa common-criteria policy PASSWORD_POLICY
+aaa common-criteria policy EXAMPLE-PASSWORD-POLICY
  min-length 15
  max-length 127
  numeric-count 1
@@ -817,7 +817,7 @@ aaa common-criteria policy PASSWORD_POLICY
             check,
             outputs={
                 "show running-config": compliant.replace(
-                    "policy PASSWORD_POLICY",
+                    "policy EXAMPLE-PASSWORD-POLICY",
                     "policy OTHER_POLICY",
                 )
             },
@@ -1129,14 +1129,14 @@ def test_public_key_certificate_check_is_tailored_not_applicable():
 
 def test_radius_server_policy_requires_server_blocks_keys_and_group_membership():
     profile = load_profile()
-    profile.endpoint_authentication.radius_group = "ISE-RADIUS"
+    profile.endpoint_authentication.radius_group = "EXAMPLE-RADIUS"
     profile.endpoint_authentication.radius_servers = [
-        "ISE1-EDU-01",
-        "ISE2-EDU-02",
+        "RADIUS-SERVER-1",
+        "RADIUS-SERVER-2",
     ]
     profile.endpoint_authentication.radius_server_addresses = {
-        "ISE1-EDU-01": "192.0.2.18",
-        "ISE2-EDU-02": "192.0.2.19",
+        "RADIUS-SERVER-1": "192.0.2.18",
+        "RADIUS-SERVER-2": "192.0.2.19",
     }
     engine = CheckEngine(profile)
     check = next(
@@ -1147,17 +1147,17 @@ def test_radius_server_policy_requires_server_blocks_keys_and_group_membership()
         if check.vuln_id == "V-220565"
     )
     compliant = """\
-radius server ISE1-EDU-01
+radius server RADIUS-SERVER-1
  address ipv4 192.0.2.18 auth-port 1812 acct-port 1813
  key 7 SECRET1
 !
-radius server ISE2-EDU-02
+radius server RADIUS-SERVER-2
  address ipv4 192.0.2.19 auth-port 1812 acct-port 1813
  key SECRET2
 !
-aaa group server radius ISE-RADIUS
- server name ISE1-EDU-01
- server name ISE2-EDU-02
+aaa group server radius EXAMPLE-RADIUS
+ server name RADIUS-SERVER-1
+ server name RADIUS-SERVER-2
 !
 """
     configurations = {
@@ -1170,7 +1170,7 @@ aaa group server radius ISE-RADIUS
             1,
         ),
         "missing_group_member": compliant.replace(
-            " server name ISE2-EDU-02\n",
+            " server name RADIUS-SERVER-2\n",
             "",
         ),
     }
@@ -1385,7 +1385,7 @@ Extended IP access list UNUSED
 
 def test_management_access_policy_requires_acl_on_every_vty_and_only_approved_sources():
     profile = load_profile()
-    profile.management_access.acl_name = "MANAGEMENT_NET"
+    profile.management_access.acl_name = "EXAMPLE-MGMT-ACL"
     profile.management_access.networks = [
         ManagementNetwork(
             network_address="192.0.2.0",
@@ -1405,26 +1405,26 @@ def test_management_access_policy_requires_acl_on_every_vty_and_only_approved_so
         }
     )
     compliant_standard = """\
-ip access-list standard MANAGEMENT_NET
+ip access-list standard EXAMPLE-MGMT-ACL
  permit 192.0.2.0 0.0.0.255
  deny any log-input
 !
 line vty 0 4
- access-class MANAGEMENT_NET in
+ access-class EXAMPLE-MGMT-ACL in
  transport input ssh
 !
 line vty 5 15
- access-class MANAGEMENT_NET in
+ access-class EXAMPLE-MGMT-ACL in
  transport input none
 !
 """
     compliant_extended = """\
-ip access-list extended MANAGEMENT_NET
+ip access-list extended EXAMPLE-MGMT-ACL
  permit ip 192.0.2.0 0.0.0.255 any
  deny ip any any log-input
 !
 line vty 0 15
- access-class MANAGEMENT_NET in
+ access-class EXAMPLE-MGMT-ACL in
  transport input ssh
 !
 """
@@ -1432,11 +1432,11 @@ line vty 0 15
         "standard": compliant_standard,
         "extended": compliant_extended,
         "missing_second_vty_acl": compliant_standard.replace(
-            "line vty 5 15\n access-class MANAGEMENT_NET in\n",
+            "line vty 5 15\n access-class EXAMPLE-MGMT-ACL in\n",
             "line vty 5 15\n",
         ),
         "wrong_vty_acl": compliant_standard.replace(
-            "access-class MANAGEMENT_NET in",
+            "access-class EXAMPLE-MGMT-ACL in",
             "access-class OTHER_NET in",
             1,
         ),

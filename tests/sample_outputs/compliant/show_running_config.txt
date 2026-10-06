@@ -1,9 +1,9 @@
 ﻿version 17.9
 hostname SW-ACCESS-01
 !
-aaa group server radius ISE-RADIUS
- server name ISE1-EDU-01
- server name ISE2-EDU-02
+aaa group server radius EXAMPLE-RADIUS
+ server name RADIUS-SERVER-1
+ server name RADIUS-SERVER-2
 !
 udld enable
 !
@@ -37,7 +37,7 @@ interface GigabitEthernet1/0/1
 interface GigabitEthernet1/0/2
  description UNUSED-SHUTDOWN
  switchport mode access
- switchport access vlan 999
+ switchport access vlan 997
  authentication port-control auto
  dot1x pae authenticator
  mab
@@ -50,7 +50,7 @@ interface GigabitEthernet1/0/2
 interface GigabitEthernet1/0/3
  description SPARE-NOTCONNECTED
  switchport mode access
- switchport access vlan 999
+ switchport access vlan 997
  authentication port-control auto
  dot1x pae authenticator
  mab
@@ -64,7 +64,7 @@ interface GigabitEthernet1/0/24
  description UPLINK
  switchport mode trunk
  switchport trunk native vlan 998
- switchport trunk allowed vlan 10,20,30,999
+ switchport trunk allowed vlan 10,20,30,997
  ip dhcp snooping trust
  ip arp inspection trust
  no shutdown

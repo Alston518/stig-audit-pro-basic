@@ -192,7 +192,7 @@ class CheckLibrary(StrictModel):
 
 class DisabledPortPolicy(StrictModel):
     require_shutdown: bool = True
-    required_access_vlan: int = 999
+    required_access_vlan: int = 997
 
 
 class TrunkPolicy(StrictModel):
@@ -221,12 +221,12 @@ class ManagementNetwork(StrictModel):
 
 
 class ManagementAccessPolicy(StrictModel):
-    acl_name: str = "MANAGEMENT_NET"
+    acl_name: str = "EXAMPLE-MGMT-ACL"
     networks: list[ManagementNetwork] = Field(default_factory=list)
 
 
 class EndpointAuthenticationPolicy(StrictModel):
-    radius_group: str = "ISE-RADIUS"
+    radius_group: str = "EXAMPLE-RADIUS"
     radius_servers: list[str] = Field(default_factory=list)
     radius_server_addresses: dict[str, str] = Field(default_factory=dict)
 
@@ -243,9 +243,9 @@ class SiteProfile(StrictModel):
     profile_name: str
     inherits: str | None = None
     variables: dict[str, Any] = Field(default_factory=dict)
-    unused_vlan: int = 999
-    native_vlan: int = 333
-    management_vlan: int = 300
+    unused_vlan: int = 997
+    native_vlan: int = 20
+    management_vlan: int = 10
     disabled_port_policy: DisabledPortPolicy = Field(default_factory=DisabledPortPolicy)
     trunk_policy: TrunkPolicy = Field(default_factory=TrunkPolicy)
     dhcp_snooping: DhcpSnoopingPolicy = Field(default_factory=DhcpSnoopingPolicy)

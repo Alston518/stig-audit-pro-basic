@@ -84,9 +84,9 @@ class ProfilesTab(PageFrame):
         form.grid_columnconfigure(1, weight=1)
         self.fields: dict[str, ctk.CTkEntry] = {}
         field_specs = [
-            ("unused_vlan", "Unused VLAN", "999"),
-            ("native_vlan", "Native VLAN", "333"),
-            ("management_vlan", "Management VLAN", "300"),
+            ("unused_vlan", "Unused VLAN", "997"),
+            ("native_vlan", "Native VLAN", "20"),
+            ("management_vlan", "Management VLAN", "10"),
             ("dhcp_vlans", "DHCP snooping VLANs", "10, 20, 30"),
             ("arp_vlans", "ARP inspection VLANs", "10, 20, 30"),
             ("additional_pruned_vlans", "Additional pruned VLANs", "100, 200"),

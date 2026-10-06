@@ -9,7 +9,7 @@ from stig_audit_pro.reports.audit_report import build_text_report, write_csv_rep
 def sample_results() -> list[CheckResult]:
     return [
         CheckResult(
-            ip="10.50.10.26",
+            ip="192.0.2.26",
             hostname="SW-ACCESS-02",
             vuln_id="V-220667",
             stig_family="IOSXE_L2",
@@ -22,7 +22,7 @@ def sample_results() -> list[CheckResult]:
             commands_used=["show running-config", "show interfaces status"],
         ),
         CheckResult(
-            ip="10.50.10.26",
+            ip="192.0.2.26",
             hostname="SW-ACCESS-02",
             vuln_id="V-220529",
             stig_family="IOSXE_L2",
@@ -65,5 +65,5 @@ def test_report_writers_create_txt_and_csv(tmp_path):
     assert "OPEN FINDINGS - QUICK VIEW" in txt_path.read_text(encoding="utf-8")
     csv_text = csv_path.read_text(encoding="utf-8-sig")
     assert "ip,hostname,vuln_id" in csv_text
-    assert "10.50.10.26" in csv_text
+    assert "192.0.2.26" in csv_text
     assert "V-220667" in csv_text

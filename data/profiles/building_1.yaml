@@ -1,21 +1,21 @@
 profile_name: building_1
 inherits: base_iosxe_access
-unused_vlan: 999
+unused_vlan: 997
 dhcp_snooping:
   enabled: true
   vlans:
-  - 110
-  - 120
-  - 130
+  - 11
+  - 12
+  - 13
 arp_inspection:
   enabled: true
   vlans:
-  - 110
-  - 120
-  - 130
+  - 11
+  - 12
+  - 13
 variables:
   site_label: Building 1
   required_user_vlans:
-  - 110
-  - 120
-  - 130
+  - 11
+  - 12
+  - 13

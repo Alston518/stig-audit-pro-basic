@@ -28,13 +28,13 @@ interface GigabitEthernet1/0/2
 interface GigabitEthernet1/0/3
  description UNUSED-SHUTDOWN
  switchport mode access
- switchport access vlan 999
+ switchport access vlan 997
  shutdown
 !
 interface GigabitEthernet1/0/24
  description UPLINK
  switchport mode trunk
- switchport trunk allowed vlan 1,10,20,30,999
+ switchport trunk allowed vlan 1,10,20,30,997
  negotiation auto
  no shutdown
 !

@@ -2033,7 +2033,7 @@ class StigAuditProApp(ctk.CTk):
             self._show_error(str(exc), kind="license")
 
     def run_sample_audit(self, sample_name: str) -> None:
-        ip = "10.50.10.25" if sample_name == "compliant" else "10.50.10.26"
+        ip = "192.0.2.25" if sample_name == "compliant" else "192.0.2.26"
         target = DeviceTargetRecord(ip=ip, checked=True)
         try:
             targets = self._licensed_targets([target])

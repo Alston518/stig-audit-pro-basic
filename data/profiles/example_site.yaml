@@ -1,9 +1,9 @@
 profile_name: example_site
 inherits: base_iosxe_access
-unused_vlan: 999
+unused_vlan: 997
 disabled_port_policy:
   require_shutdown: true
-  required_access_vlan: 999
+  required_access_vlan: 997
 trunk_policy:
   vlan_1_must_be_pruned: true
   additional_pruned_vlans: []
