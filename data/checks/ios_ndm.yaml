@@ -1172,4 +1172,3 @@ checks:
     fail_comment: The installed IOS release is not in the profile-defined approved list.
     error_comment: The installed IOS release could not be evaluated.
     finding_details_template: default
-
