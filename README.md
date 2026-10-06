@@ -1,36 +1,19 @@
 # STIG Audit Pro Basic
 
-## Check setup worksheet
+## Download the Windows app
 
-For the 3 October 2026 IOS/IOS XE combined reporting tester package, use the
-[check-by-check setup worksheet](docs/basic/README.md). It explains all 121
-checks in plain language, including the exact profile YAML field to edit when
-a site value is required and the checks that need no site input.
+Open the [latest Windows release](https://github.com/Alston518/stig-audit-pro-basic/releases/tag/basic-windows-2026-10-05) and download **STIG_Audit_Basic_IOS_IOSXE_2026-10-05_Public_Windows.zip** from its **Assets** section. Extract the entire ZIP to a writable Windows x64 folder and double-click `START BASIC AUDIT.cmd`. The EXE and its required files are included; Python is not needed.
 
-STIG Audit Pro Basic is the simple, offline-friendly edition for running the
-existing YAML-driven Cisco IOS-XE checks and producing a DISA CKL and plain
-text report. It supports one or many devices, pasted addresses or CSV/TXT
-imports, sample fixtures (no network required), and live SSH using only the
-central read-only command policy.
+GitHub's **Code → Download ZIP** button downloads repository source, not the ready-to-run Windows app. Use the Release asset for installation.
 
-## Start
+This release supports IOS and IOS XE L2/NDM audits, TXT and CKL output, and current-run combined PDF, HTML, and CSV summaries. Free Basic audits one selected device per run. A signed offline license can enable larger batches.
 
-```text
-python -m pip install -r requirements.txt
-python app.py
-```
+## Before a live audit
 
-For a first run choose **Sample outputs**, paste addresses (an address ending
-in `.26` uses the bundled non-compliant fixture), select a profile, and click
-**Start Audit**. Text reports are written to `Documents/STIG Audit Pro
-Basic/Workspace/Reports`. CKLs are written to `Workspace/Completed CKLs` when
-you select a DISA CKL template for the corresponding family.
+The public ZIP contains example-only site profiles. Enter your own approved VLANs, management networks, server names and addresses, and supported software versions in `Application/data/profiles/base_iosxe_access.yaml` or `base_ios_switch_access.yaml`. The [check-by-check worksheet](docs/basic/README.md) explains all 121 checks, the exact YAML field for each site value, checks that need no input, and manual reviews.
 
-Editable checks and profiles are copied on first launch to the per-user data
-directory shown by the application. They are never overwritten by later
-launches. Credentials are session-only and are not written to disk.
+The release page provides a SHA-256 file. After extraction, `VERIFY PACKAGE.ps1` checks the package files before you customize profiles. Choose the blank CKL template matching the platform and check family when exporting a checklist.
 
-This project intentionally does not include licensing, STIG comparison,
-database/history, complex reports, or remediation. The network boundary is
-read-only: configuration mode, writes, reloads, and copy/save commands are not
-approved by the command policy.
+## Repository source
+
+The source currently visible in this repository is an earlier development snapshot. The October Windows Release asset is the downloadable combined reporting build. The owner signing application, private keys, and issued customer licenses are not included in that public ZIP.
