@@ -1,5 +1,12 @@
 # STIG Audit Pro Basic
 
+## Check setup worksheet
+
+For the 3 October 2026 IOS/IOS XE combined reporting tester package, use the
+[check-by-check setup worksheet](docs/basic/README.md). It explains all 121
+checks in plain language, including the exact profile YAML field to edit when
+a site value is required and the checks that need no site input.
+
 STIG Audit Pro Basic is the simple, offline-friendly edition for running the
 existing YAML-driven Cisco IOS-XE checks and producing a DISA CKL and plain
 text report. It supports one or many devices, pasted addresses or CSV/TXT
