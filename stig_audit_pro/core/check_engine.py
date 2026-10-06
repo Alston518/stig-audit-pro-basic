@@ -134,6 +134,8 @@ class CheckEngine:
             return self._radius_server_policy(check, parsed)
         if check.check_type == "root_guard_neighbor_policy":
             return self._root_guard_neighbor_policy(check, parsed)
+        if check.check_type == "persistent_logging_privilege_policy":
+            return self._persistent_logging_privilege_policy(check, outputs)
         if check.check_type == "vty_session_limit_policy":
             return self._vty_session_limit_policy(check, outputs)
         raise ValueError(f"Unsupported check type: {check.check_type}")
@@ -1287,10 +1289,14 @@ class CheckEngine:
             check.conditions.get("upstream_profile_key") or "root_guard.upstream_switches"
         )
         configured_upstreams = sorted(str(value) for value in self._profile_list(upstream_profile_key))
+        upstream_model_tokens = [
+            str(value).casefold() for value in check.conditions.get("upstream_model_tokens", [])
+            if str(value).strip()
+        ]
         required_string = str(
             check.conditions.get("required_string") or "spanning-tree guard root"
         ).strip()
-        if not configured_upstreams:
+        if not configured_upstreams and not upstream_model_tokens:
             return EvaluationOutcome(
                 passed=False,
                 status="Not_Reviewed",
@@ -1318,7 +1324,8 @@ class CheckEngine:
 
         for neighbor in switch_neighbors:
             neighbor_names = self._neighbor_name_variants(neighbor.device_id)
-            if neighbor_names & upstream_names:
+            model_text = f"{neighbor.device_id} {neighbor.platform}".casefold()
+            if neighbor_names & upstream_names or any(token in model_text for token in upstream_model_tokens):
                 exempted.append(
                     FindingObject(
                         object_type="interface",
@@ -1397,6 +1404,50 @@ class CheckEngine:
             passed=True,
             passed_objects=passed,
             details=["Root Guard is configured on every CDP-identified access-switch-facing interface."],
+        )
+
+    def _persistent_logging_privilege_policy(
+        self,
+        check: CheckDefinition,
+        outputs: dict[str, str],
+    ) -> EvaluationOutcome:
+        config = outputs.get(check.commands[0], "")
+        if not config.strip():
+            return EvaluationOutcome(
+                passed=False,
+                status=check.result.error_status,
+                details=["Running configuration output is empty; persistent logging cannot be assessed."],
+            )
+        persistent = re.search(
+            r"(?mi)^[ \t]*logging[ \t]+persistent(?:[ \t]+[^\r\n]*)?$",
+            config,
+        )
+        if not persistent:
+            return EvaluationOutcome(
+                passed=False,
+                details=["Persistent logging is not enabled; this control is Not Applicable."],
+            )
+        privileges = re.findall(
+            r"(?i)(?<!\S)file[ \t]+privilege[ \t]+([^ \t\r\n]+)",
+            config,
+        )
+        if privileges and all(value == "15" for value in privileges):
+            return EvaluationOutcome(
+                passed=True,
+                details=["Persistent logging is enabled with file privilege 15."],
+            )
+        found = ", ".join(privileges) if privileges else "none"
+        return EvaluationOutcome(
+            passed=False,
+            status="Open",
+            failed_objects=[
+                FindingObject(
+                    object_type="persistent_logging",
+                    object_name="file privilege",
+                    details=f"expected only file privilege 15; found {found}",
+                )
+            ],
+            details=["Persistent logging is enabled without the required file privilege 15 setting."],
         )
 
     def _interface_policy(self, check: CheckDefinition, parsed: ParsedDeviceData) -> EvaluationOutcome:

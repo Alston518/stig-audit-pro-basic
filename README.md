@@ -16,4 +16,4 @@ The release page provides a SHA-256 file. After extraction, `VERIFY PACKAGE.ps1`
 
 ## Repository source
 
-The source currently visible in this repository is an earlier development snapshot. The October Windows Release asset is the downloadable combined reporting build. The owner signing application, private keys, and issued customer licenses are not included in that public ZIP.
+The source in this repository now contains the October Basic IOS/IOS XE checks, offline licensing, and combined reporting code. `BUILD EXE.cmd` and `STIG Audit Basic.spec` build the Basic app on Windows with Python 3.12. The GitHub Release ZIP remains the easiest way to run it. The owner signing application, private keys, and issued customer licenses are not included in that public ZIP.

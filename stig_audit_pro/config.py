@@ -35,6 +35,7 @@ SUPPORTED_CHECK_TYPES: tuple[str, ...] = (
     "dod_banner_policy",
     "radius_server_policy",
     "root_guard_neighbor_policy",
+    "persistent_logging_privilege_policy",
     "vty_session_limit_policy",
     "manual_review",
 )

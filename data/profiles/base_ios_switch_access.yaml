@@ -1,6 +1,6 @@
 # SITE-NEUTRAL EXAMPLE ONLY. Replace every site value before a live audit.
 # See Documentation/05_Check_By_Check_Setup_Worksheet.pdf for each field.
-profile_name: base_iosxe_access
+profile_name: base_ios_switch_access
 inherits: null
 unused_vlan: 4094
 native_vlan: 20
@@ -52,8 +52,8 @@ variables:
   ntp_servers:
   - 192.0.2.22
   - 192.0.2.23
-  supported_iosxe_versions: []
+  supported_ios_versions: []
   local_password_policy: EXAMPLE-PASSWORD-POLICY
   tacacs_group: EXAMPLE-TACACS
   max_concurrent_management_sessions: 16
-  supported_ios_versions: []
+  supported_iosxe_versions: []

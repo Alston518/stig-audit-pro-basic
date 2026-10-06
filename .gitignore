@@ -23,6 +23,7 @@ data/stigs/cache/
 build/
 dist/
 *.spec
+!STIG Audit Basic.spec
 !STIG Audit Pro Basic.spec
 !stig-audit-pro.spec
 *.egg-info/

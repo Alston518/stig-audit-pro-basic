@@ -131,7 +131,7 @@ class LicenseManager:
                 return self.status
             try:
                 raw_text = self.license_path.read_text(encoding="utf-8")
-            except OSError as exc:
+            except (OSError, UnicodeError) as exc:
                 return self._fail(f"License file is not readable: {exc}")
 
             try:
