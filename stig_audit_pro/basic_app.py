@@ -400,18 +400,18 @@ class BasicApp:
             result=service.run_offline(output_loader=sample_outputs,**kwargs) if mode=="Sample outputs" else service.run_live(credentials=creds,**kwargs)
             # Export is a separate licensed operation; expiry or replacement may have occurred while collecting.
             self.license_policy.validate(addresses,families,make_txt,make_ckl)
-            written=[]; output_dir.mkdir(parents=True,exist_ok=True)
+            written=[]
             if make_txt:
                 for ip, asset in result.assets.items():
                     device_results=[r for r in result.results if r.ip == ip]
-                    written.append(str(write_text_report(device_results, output_dir / f"{report_stem(asset, ip, families)}.txt")))
+                    written.append(str(self.vault.save(f"{report_stem(asset, ip, families)}.txt", build_text_report(device_results).encode("utf-8"))))
             if make_ckl:
                 for ip,asset in result.assets.items():
                     if len(families)>1:
-                        dest=output_dir/f"{report_stem(asset, ip, families)}.ckl";write_completed_ckl(templates["combined"],dest,[r for r in result.results if r.ip==ip],asset);written.append(str(dest));continue
+                        data,*_=render_completed_ckl(templates["combined"],[r for r in result.results if r.ip==ip],asset);written.append(str(self.vault.save(f"{report_stem(asset, ip, families)}.ckl",data)));continue
                     for family in families:
                         template=templates[family]
-                        subset=family_results([r for r in result.results if r.ip==ip],family); dest=output_dir/f"{report_stem(asset, ip, [family])}.ckl";write_completed_ckl(template,dest,subset,asset);written.append(str(dest))
+                        subset=family_results([r for r in result.results if r.ip==ip],family);data,*_=render_completed_ckl(template,subset,asset);written.append(str(self.vault.save(f"{report_stem(asset, ip, [family])}.ckl",data)))
             self.events.put(type("E",(),{"message":"Completed. Files written:\n"+"\n".join(written),"summary_results":list(result.results),"summary_targets":list(addresses),"summary_families":list(families),"summary_run_id":run_id})())
         except Exception as exc:self.events.put(type("E",(),{"message":f"Audit failed: {exc}"})())
     def poll(self):
