@@ -9,7 +9,6 @@ from __future__ import annotations
 import base64
 import json
 import os
-import re
 import uuid
 from pathlib import Path
 
@@ -115,7 +114,10 @@ class BasicOutputVault:
         path = Path(selected).resolve()
         if path.parent != self.root or path.suffix != ".sapenc":
             raise VaultError("Only encrypted files from the selected vault may be decrypted.")
-        encrypted = path.read_bytes()
+        try:
+            encrypted = path.read_bytes()
+        except OSError as exc:
+            raise VaultError("Encrypted report not found or unreadable.") from exc
         if not encrypted.startswith(MAGIC) or len(encrypted) < len(MAGIC) + 28:
             raise VaultError("Unsupported or damaged encrypted report.")
         nonce = encrypted[len(MAGIC):len(MAGIC) + 12]
