@@ -1,0 +1,46 @@
+STIG AUDIT BASIC - REPORT, SECURITY, AND INTERFACE UPDATE
+9 October 2026
+
+REPORT RELIABILITY
+- Failed audits no longer display a successful "Files written" message.
+- Completed, partial, failed, and cancelled states include actual protected
+  file counts, failed-device counts, and the exact output folder.
+- Report names identify the complete selected target and include a digest and
+  run identifier, preventing same-octet and repeat-run collisions.
+- Report publication refuses to replace an existing file. A failed readable
+  export removes a partial plaintext file when the filesystem permits it.
+- A headerless CSV device list keeps its first row.
+
+SECURITY
+- Reports and summaries remain encrypted .sapenc files at rest. Readable
+  output requires an explicit export action and warning.
+- Live SSH requires a trusted server key from the current Windows account's
+  known_hosts file. Unknown or changed keys stop collection.
+- SSH password and enable-secret fields clear when a live run begins.
+- Raw SSH exception text, vendor transport messages, device identifiers, and
+  tracebacks are excluded from the plaintext application log and Results view.
+- Closing during an active audit requests cancellation and waits for device
+  work and report saves instead of destroying the window immediately.
+
+USABILITY
+- The five-tab Basic workflow is retained with a navy and teal visual refresh.
+- Audit is organized into Targets, Audit Setup, Blank Checklist Templates,
+  Protected Output, and Run and Review sections.
+- The mode indicator clearly distinguishes local demonstration data from Live
+  SSH. The result card can open the output folder or display the latest
+  protected text report in memory.
+
+LICENSING AND AI
+- No license schema, product identifier, signing key, entitlement, or Free
+  Basic device limit changed. Existing valid Basic licenses remain compatible.
+- No cloud AI service is connected. Device configuration and findings are not
+  sent to an external model. Any future AI review requires an approved data
+  flow, retention policy, authorization boundary, and deployment decision.
+
+VERIFICATION
+- Final source run: 291 passed, 0 failed, 2 transient Tk skips. The focused
+  GUI and security rerun passed 16 tests with no skips.
+- The packaged offline smoke executable exited 0 after creating and decrypting
+  an encrypted report and constructing the real five-tab GUI.
+- No live Cisco device was contacted. The executable remains unsigned and the
+  bundled cryptographic module is not claimed as FIPS 140-3 validated.

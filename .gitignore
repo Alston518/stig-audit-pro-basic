@@ -24,8 +24,7 @@ build/
 dist/
 *.spec
 !STIG Audit Basic.spec
-!STIG Audit Pro Basic.spec
-!stig-audit-pro.spec
+!STIG Audit Basic Smoke.spec
 *.egg-info/
 
 *.log

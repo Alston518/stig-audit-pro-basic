@@ -18,8 +18,8 @@ def check_from(library: str, vuln_id: str):
     )
 
 
-def status(check, command: str, output: str, profile=PROFILE) -> str:
-    return CheckEngine(profile).evaluate(check, {command: output}, ip="192.0.2.1").status
+def status(check, command: str, output: str) -> str:
+    return CheckEngine(PROFILE).evaluate(check, {command: output}, ip="192.0.2.1").status
 
 
 def test_ios_l2_qos_requires_global_mls_qos():
@@ -43,18 +43,16 @@ def test_ios_l2_qos_requires_global_mls_qos():
 def test_ios_password_setting_must_be_under_selected_policy(vuln_id, setting):
     check = check_from("ios_ndm", vuln_id)
     assert check.automated
-    correct = f"aaa common-criteria policy {PROFILE.variables['local_password_policy']}\n {setting}\n"
+    correct = f"aaa common-criteria policy EXAMPLE-PASSWORD-POLICY\n {setting}\n"
     wrong_policy = f"aaa common-criteria policy OTHER_POLICY\n {setting}\n"
     assert status(check, "show running-config", correct) == "NotAFinding"
     assert status(check, "show running-config", wrong_policy) == "Open"
     assert status(check, "show running-config", "hostname switch\n") == "Open"
 
 
-def test_ios_version_uses_configured_approved_release():
+def test_ios_version_uses_approved_release_15_2_7_e14():
     check = check_from("ios_ndm", "V-220621")
-    assert PROFILE.variables["supported_ios_versions"] == []
-    approved_profile = PROFILE.model_copy(deep=True)
-    approved_profile.variables["supported_ios_versions"] = ["15.2(7)E14"]
-    assert status(check, "show version", "Cisco IOS Software, Version 15.2(7)E14, RELEASE SOFTWARE\n", approved_profile) == "NotAFinding"
-    assert status(check, "show version", "Cisco IOS Software, Version 15.2(7)E13, RELEASE SOFTWARE\n", approved_profile) == "Open"
-    assert status(check, "show version", "Cisco IOS Software, Version 15.2(7)E14a, RELEASE SOFTWARE\n", approved_profile) == "Open"
+    assert PROFILE.variables["supported_ios_versions"] == ["15.2(7)E14"]
+    assert status(check, "show version", "Cisco IOS Software, Version 15.2(7)E14, RELEASE SOFTWARE\n") == "NotAFinding"
+    assert status(check, "show version", "Cisco IOS Software, Version 15.2(7)E13, RELEASE SOFTWARE\n") == "Open"
+    assert status(check, "show version", "Cisco IOS Software, Version 15.2(7)E14a, RELEASE SOFTWARE\n") == "Open"

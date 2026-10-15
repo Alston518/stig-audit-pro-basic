@@ -14,11 +14,13 @@ def basic_ui(tmp_path,monkeypatch,signed_license):
     monkeypatch.setenv('STIG_AUDIT_BASIC_LICENSE_PATH',str(tmp_path/'basic.json'))
     import customtkinter as ctk
     from stig_audit_pro.basic_app import BasicApp
+    from stig_audit_pro.infrastructure.security.at_rest import AtRestVault
     from stig_audit_pro.licensing.basic_policy import BasicLicensePolicy
     try:root=ctk.CTk()
     except tkinter.TclError as exc:pytest.skip(f'Tk display unavailable: {exc}')
     root.withdraw()
-    app=BasicApp(root)
+    vault=AtRestVault.open(tmp_path/'basic-vault.json','a long test passphrase',create=True)
+    app=BasicApp(root,vault)
     app.license_policy=BasicLicensePolicy(signed_license[0])
     messages=[]
     app.messagebox=SimpleNamespace(**{name:lambda *args:messages.append(args) for name in ('showerror','showinfo','showwarning')})
@@ -52,9 +54,10 @@ def test_free_selection_runs_only_chosen_device_and_retains_inventory(basic_ui,t
     while app.thread.is_alive() and time.monotonic()<deadline:
         root.update();time.sleep(.02)
     assert not app.thread.is_alive()
-    reports=list(output.glob('*.txt'))
+    reports=list(output.glob('*.txt.sapenc'))
     assert len(reports)==1
-    assert '192.0.2.26' in reports[0].read_text()
+    assert '192.0.2.26' in app.artifacts.read(reports[0]).decode()
+    assert not list(output.glob('*.txt'))
     assert app.devices.get('1.0','end').strip()==inventory.strip()
 
 

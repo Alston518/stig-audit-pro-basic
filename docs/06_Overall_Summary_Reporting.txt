@@ -1,0 +1,32 @@
+OVERALL SUMMARY REPORTING - BASIC IOS / IOS XE
+9 October 2026
+
+Summary covers devices selected for the current audit run. It does not combine
+earlier runs. Check the Audit result card first: a partial or failed run can
+include unassessed devices, and an unassessed device is not a passing result.
+
+1. Run an audit and review its final status and encrypted file count on Audit.
+2. Open Summary. Preview shows status counts, CAT I/II/III open findings by
+   switch, and selected devices with no check results as Unassessed.
+3. Filter by status, CAT, switch, and STIG family; then click Preview.
+4. Choose PDF with charts, HTML with charts, CSV details, or all three.
+5. Click Export summary. Each selected format is written as an encrypted
+   .sapenc file in the output folder shown on Audit.
+
+The overview charts describe the full current run. Filters change the detailed
+rows. PDF and HTML include status and CAT charts, a per-switch open finding
+table, and filtered details. CSV contains filtered check rows. Basic can show
+protected HTML and CSV text in memory. To view a protected PDF in a PDF reader,
+deliberately use Results > Export readable copy. That copy is unencrypted and
+must be stored and shared under your department's handling rules.
+
+Assessed pass rate = Not a Finding / (Not a Finding + Open).
+Assessment coverage = (Not a Finding + Open) / all emitted check results.
+Errors, skipped checks, Not Reviewed, and Not Applicable stay separate.
+These measures are not an accreditation decision or network health score.
+Verify the site profile, manual checks, and device evidence.
+
+The app rechecks the license before exporting. A valid license without
+Advanced Reporting cannot export a summary; an expired license cannot export
+a multi-device summary. See 08_Report_Output_Troubleshooting.md if the run
+created no reports or only partial output.

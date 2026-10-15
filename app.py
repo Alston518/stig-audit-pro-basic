@@ -1,4 +1,4 @@
-﻿"""Desktop entry point for STIG Audit Pro."""
+"""Desktop entry point for STIG Audit Basic."""
 
 from __future__ import annotations
 

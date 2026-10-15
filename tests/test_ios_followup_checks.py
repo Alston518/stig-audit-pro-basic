@@ -95,7 +95,7 @@ def cdp_neighbor(name: str) -> str:
     "neighbor",
     (
         "CORE-DIST-01",
-        "C950048Y4C-dedu-carpa-650-B056-145",
+        "CORE-DIST-02",
         "DIST-9500-NEW",
         "CORE-9600-NEW",
     ),

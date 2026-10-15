@@ -1,0 +1,78 @@
+STIG AUDIT BASIC - CURRENT RELEASE VERIFICATION
+15 October 2026 | Windows x64 | Python 3.12
+
+STATUS
+The dedicated public Basic repository passed its source suite, Basic release
+guardrails, Windows application build, and packaged offline smoke test. The
+test and build procedures did not contact a network device.
+
+SOURCE TESTS
+Command: py -3.12 -m pytest -q
+Result: 291 passed, 0 failed, 1 skipped in 32.27 seconds.
+
+The one skipped test was a source-level Tk initialization case caused by an
+incomplete local Python Tcl/Tk installation. Five other tests in that focused
+module passed. The packaged smoke test subsequently constructed the real Basic
+GUI successfully from the PyInstaller distribution.
+
+Focused release command:
+  py -3.12 -m pytest -q tests/test_basic_security_update.py
+    tests/test_public_release_hygiene.py
+    tests/test_basic_platform_selection.py
+Result: 34 passed, 0 failed in 4.87 seconds.
+
+Coverage includes encrypted TXT, CKL, PDF, HTML, and CSV output; wrong
+passphrase and tamper rejection; no plaintext staging; failed and partial run
+reporting; distinct Windows-safe filenames; destination validation; completion
+polling; close-during-run behavior; CSV import; safe SSH error display; strict
+host-key checking in both Basic SSH runners; and public release hygiene.
+
+WINDOWS APPLICATION BUILD
+Command:
+  py -3.12 -m PyInstaller --noconfirm --clean
+    --distpath work\release-build\dist
+    --workpath work\release-build\work
+    "STIG Audit Basic.spec"
+Result: exit 0.
+
+Built executable SHA-256:
+  C42F0BBBE70FFE26D9642E77BD43218DCC047352194AA8BF14F04F198D6E63A6
+
+The bundled license trust store contained only:
+  stig-audit-prod-2026-01.pem
+  stig-audit-prod-2026-02.pem
+No test verification key, owner signing tool, or private-key file appeared in
+the distribution.
+
+PACKAGED OFFLINE SMOKE TEST
+A separate console smoke executable was built from
+STIG Audit Basic Smoke.spec and run with disposable output, vault, license,
+and Documents paths. It exited 0 with both markers:
+  PACKAGED_BASIC_REPORT_OK
+  PACKAGED_BASIC_GUI_OK
+
+The run created one encrypted .txt.sapenc file, confirmed that no readable
+.txt report existed, decrypted the protected content through the vault,
+constructed the real five-tab Basic GUI, checked the initial run controls, and
+exercised the Live SSH mode indicator. It did not contact a device or modify
+the operator's existing Basic vault.
+
+DOCUMENT AND DATA SANITIZATION
+Public profile YAML and profile_values.json were checked for known site names
+and private site address values. The Word guides were inspected at the OOXML
+level, regenerated as PDFs, and all pages were rendered for visual review.
+The sanitized PDFs were also checked through text extraction. No known site
+indicator or public license-issuance command remained.
+
+LIMITATIONS
+No live Cisco SSH handshake was performed. A cyber-approved pilot must verify
+independent fingerprint enrollment and rejection of an unknown or changed key
+on an authorized device. The vault protects new report artifacts, excluding
+historical plaintext, editable profiles and checks, licenses, templates,
+endpoint swap, crash dumps, backups, logs, and explicit readable exports.
+A weak nonempty passphrase reduces confidentiality. The executable remains
+unsigned, and no FIPS 140-3 validation is claimed for bundled cryptography.
+
+See 07_Basic_Encryption_SSH_and_Licensing.md,
+08_Report_Output_Troubleshooting.md, and
+11_Public_Release_Cleanup_Notes.txt for the reviewer-facing details.

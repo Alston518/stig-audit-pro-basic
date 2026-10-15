@@ -1,0 +1,347 @@
+{
+  "base_ios_switch_access": {
+    "profile_name": "base_ios_switch_access",
+    "inherits": null,
+    "unused_vlan": 997,
+    "native_vlan": 20,
+    "management_vlan": 10,
+    "disabled_port_policy": {
+      "require_shutdown": true,
+      "required_access_vlan": 997
+    },
+    "trunk_policy": {
+      "vlan_1_must_be_pruned": true,
+      "additional_pruned_vlans": []
+    },
+    "dhcp_snooping": {
+      "enabled": true,
+      "vlans": [
+        30
+      ],
+      "required_global_commands": [
+        "ip dhcp snooping"
+      ]
+    },
+    "arp_inspection": {
+      "enabled": true,
+      "vlans": [
+        30
+      ]
+    },
+    "root_guard": {
+      "upstream_switches": [
+        "CORE-DIST-01",
+        "CORE-DIST-02"
+      ]
+    },
+    "management_access": {
+      "acl_name": "EXAMPLE-MGMT-ACL",
+      "networks": [
+        {
+          "network_address": "192.0.2.0",
+          "subnet_mask": "255.255.255.0"
+        }
+      ]
+    },
+    "endpoint_authentication": {
+      "radius_group": "EXAMPLE-RADIUS",
+      "radius_servers": [
+        "RADIUS-SERVER-1",
+        "RADIUS-SERVER-2"
+      ],
+      "radius_server_addresses": {
+        "RADIUS-SERVER-1": "192.0.2.18",
+        "RADIUS-SERVER-2": "192.0.2.19"
+      }
+    },
+    "comments": {
+      "default_open_prefix": "Automated STIG validation found noncompliant configuration.",
+      "default_pass_prefix": "Automated STIG validation found required configuration present.",
+      "default_error_prefix": "Automated STIG validation could not confidently evaluate this requirement."
+    },
+    "variables": {
+      "site_label": "Starter Cisco IOS access-switch profile",
+      "required_user_vlans": [
+        30
+      ],
+      "logging_servers": [
+        "192.0.2.5",
+        "192.0.2.6"
+      ],
+      "ntp_servers": [
+        "192.0.2.23",
+        "192.0.2.22"
+      ],
+      "supported_ios_versions": [
+        "15.2(7)E14"
+      ],
+      "local_password_policy": "EXAMPLE-PASSWORD-POLICY",
+      "tacacs_group": "EXAMPLE-TACACS",
+      "max_concurrent_management_sessions": 16
+    }
+  },
+  "base_iosxe_access": {
+    "profile_name": "base_iosxe_access",
+    "inherits": null,
+    "unused_vlan": 997,
+    "native_vlan": 20,
+    "management_vlan": 10,
+    "disabled_port_policy": {
+      "require_shutdown": true,
+      "required_access_vlan": 997
+    },
+    "trunk_policy": {
+      "vlan_1_must_be_pruned": true,
+      "additional_pruned_vlans": []
+    },
+    "dhcp_snooping": {
+      "enabled": true,
+      "vlans": [
+        30
+      ],
+      "required_global_commands": [
+        "ip dhcp snooping"
+      ]
+    },
+    "arp_inspection": {
+      "enabled": true,
+      "vlans": [
+        30
+      ]
+    },
+    "root_guard": {
+      "upstream_switches": [
+        "CORE-DIST-01"
+      ]
+    },
+    "management_access": {
+      "acl_name": "EXAMPLE-MGMT-ACL",
+      "networks": [
+        {
+          "network_address": "192.0.2.0",
+          "subnet_mask": "255.255.255.0"
+        }
+      ]
+    },
+    "endpoint_authentication": {
+      "radius_group": "EXAMPLE-RADIUS",
+      "radius_servers": [
+        "RADIUS-SERVER-1",
+        "RADIUS-SERVER-2"
+      ],
+      "radius_server_addresses": {
+        "RADIUS-SERVER-1": "192.0.2.18",
+        "RADIUS-SERVER-2": "192.0.2.19"
+      }
+    },
+    "comments": {
+      "default_open_prefix": "Automated STIG validation found noncompliant configuration.",
+      "default_pass_prefix": "Automated STIG validation found required configuration present.",
+      "default_error_prefix": "Automated STIG validation could not confidently evaluate this requirement."
+    },
+    "variables": {
+      "site_label": "Test IOS-XE access switch profile",
+      "required_user_vlans": [
+        30
+      ],
+      "logging_servers": [
+        "192.0.2.5",
+        "192.0.2.6"
+      ],
+      "ntp_servers": [
+        "192.0.2.22",
+        "192.0.2.23"
+      ],
+      "supported_iosxe_versions": [
+        "17.12.08"
+      ],
+      "local_password_policy": "EXAMPLE-PASSWORD-POLICY",
+      "tacacs_group": "EXAMPLE-TACACS",
+      "max_concurrent_management_sessions": 16
+    }
+  },
+  "base_iosxe_access_test": {
+    "profile_name": "base_iosxe_access_test",
+    "inherits": null,
+    "unused_vlan": 997,
+    "native_vlan": 20,
+    "management_vlan": 10,
+    "disabled_port_policy": {
+      "require_shutdown": true,
+      "required_access_vlan": 997
+    },
+    "trunk_policy": {
+      "vlan_1_must_be_pruned": true,
+      "additional_pruned_vlans": []
+    },
+    "dhcp_snooping": {
+      "enabled": true,
+      "vlans": [
+        556,
+        30
+      ],
+      "required_global_commands": [
+        "ip dhcp snooping"
+      ]
+    },
+    "arp_inspection": {
+      "enabled": true,
+      "vlans": [
+        556,
+        30
+      ]
+    },
+    "root_guard": {
+      "upstream_switches": [
+        "CORE-DIST-01.example.invalid"
+      ]
+    },
+    "management_access": {
+      "acl_name": "EXAMPLE-MGMT-ACL",
+      "networks": [
+        {
+          "network_address": "192.0.2.0",
+          "subnet_mask": "255.255.255.0"
+        }
+      ]
+    },
+    "endpoint_authentication": {
+      "radius_group": "EXAMPLE-RADIUS",
+      "radius_servers": [
+        "RADIUS-SERVER-1",
+        "RADIUS-SERVER-2"
+      ],
+      "radius_server_addresses": {
+        "RADIUS-SERVER-1": "192.0.2.18",
+        "RADIUS-SERVER-2": "192.0.2.19"
+      }
+    },
+    "comments": {
+      "default_open_prefix": "Automated STIG validation found noncompliant configuration.",
+      "default_pass_prefix": "Automated STIG validation found required configuration present.",
+      "default_error_prefix": "Automated STIG validation could not confidently evaluate this requirement."
+    },
+    "variables": {
+      "site_label": "Test IOS-XE access switch profile",
+      "required_user_vlans": [
+        556,
+        30
+      ],
+      "logging_servers": [
+        "LOGGING-SERVER-1",
+        "LOGGING-SERVER-2"
+      ],
+      "ntp_servers": [
+        "NTP-SERVER-1",
+        "NTP-SERVER-2"
+      ],
+      "supported_iosxe_versions": [
+        "17.09.05",
+        "17.12.04"
+      ],
+      "local_password_policy": "EXAMPLE-PASSWORD-POLICY",
+      "tacacs_group": "EXAMPLE-TACACS",
+      "max_concurrent_management_sessions": 16
+    }
+  },
+  "building_1": {
+    "profile_name": "building_1",
+    "inherits": "base_iosxe_access",
+    "unused_vlan": 997,
+    "dhcp_snooping": {
+      "enabled": true,
+      "vlans": [
+        110,
+        120,
+        130
+      ]
+    },
+    "arp_inspection": {
+      "enabled": true,
+      "vlans": [
+        110,
+        120,
+        130
+      ]
+    },
+    "variables": {
+      "site_label": "Building 1",
+      "required_user_vlans": [
+        110,
+        120,
+        130
+      ]
+    }
+  },
+  "building_2": {
+    "profile_name": "building_2",
+    "inherits": "base_iosxe_access",
+    "unused_vlan": 997,
+    "dhcp_snooping": {
+      "enabled": true,
+      "vlans": [
+        210,
+        220,
+        230
+      ]
+    },
+    "arp_inspection": {
+      "enabled": true,
+      "vlans": [
+        210,
+        220,
+        230
+      ]
+    },
+    "variables": {
+      "site_label": "Building 2",
+      "required_user_vlans": [
+        210,
+        220,
+        230
+      ]
+    }
+  },
+  "example_site": {
+    "profile_name": "example_site",
+    "inherits": "base_iosxe_access",
+    "unused_vlan": 997,
+    "disabled_port_policy": {
+      "require_shutdown": true,
+      "required_access_vlan": 997
+    },
+    "trunk_policy": {
+      "vlan_1_must_be_pruned": true,
+      "additional_pruned_vlans": []
+    },
+    "dhcp_snooping": {
+      "enabled": true,
+      "vlans": [
+        10,
+        20,
+        30
+      ]
+    },
+    "arp_inspection": {
+      "enabled": true,
+      "vlans": [
+        10,
+        20,
+        30
+      ]
+    },
+    "root_guard": {
+      "upstream_switches": [
+        "CORE-DIST-01"
+      ]
+    },
+    "variables": {
+      "site_label": "Example site",
+      "required_user_vlans": [
+        10,
+        20,
+        30
+      ]
+    }
+  }
+}

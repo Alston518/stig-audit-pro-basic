@@ -32,12 +32,12 @@ def test_building_profiles_override_site_specific_vlans():
     building_2 = load_profile(DATA_DIR / "profiles" / "building_2.yaml")
 
     assert building_1.profile_name == "building_1"
-    assert building_1.dhcp_snooping.vlans == [11, 12, 13]
-    assert building_1.arp_inspection.vlans == [11, 12, 13]
+    assert building_1.dhcp_snooping.vlans == [110, 120, 130]
+    assert building_1.arp_inspection.vlans == [110, 120, 130]
 
     assert building_2.profile_name == "building_2"
-    assert building_2.dhcp_snooping.vlans == [21, 22, 23]
-    assert building_2.arp_inspection.vlans == [21, 22, 23]
+    assert building_2.dhcp_snooping.vlans == [210, 220, 230]
+    assert building_2.arp_inspection.vlans == [210, 220, 230]
 
 def test_l2_automated_checks_use_editable_string_policies():
     library = load_check_library(DATA_DIR / "checks" / "iosxe_l2.yaml")

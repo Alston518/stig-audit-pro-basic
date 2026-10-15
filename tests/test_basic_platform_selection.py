@@ -113,5 +113,20 @@ def test_ios_report_name_identifies_platform():
 
     from datetime import datetime
 
-    assert report_stem(Asset(), "192.0.2.10", ["ios_l2", "ios_ndm"], datetime(2026, 9, 23)) == "10_IOS_L2_NDM_23SEP2026"
-    assert report_stem(Asset(), "192.0.2.10", ["iosxe_l2"], datetime(2026, 9, 23)) == "10_IOSXE_L2_23SEP2026"
+    assert report_stem(Asset(), "192.0.2.10", ["ios_l2", "ios_ndm"], datetime(2026, 9, 23)).startswith("10_IOS_L2_NDM_23SEP2026_192-0-2-10-")
+    assert report_stem(Asset(), "192.0.2.10", ["iosxe_l2"], datetime(2026, 9, 23)).startswith("10_IOSXE_L2_23SEP2026_192-0-2-10-")
+
+
+def test_source_build_has_repository_checklist_templates():
+    """The flattened public repo must use its own template directory."""
+
+    from stig_audit_pro import basic_app
+
+    expected = Path(basic_app.__file__).resolve().parents[1] / "Checklist Templates"
+    assert expected.is_dir()
+    required = {
+        filename
+        for templates in basic_app.TEMPLATE_FILENAMES.values()
+        for filename in templates.values()
+    }
+    assert all((expected / filename).is_file() for filename in required)

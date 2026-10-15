@@ -47,6 +47,10 @@ class NetmikoRunner:
             "timeout": target.timeout,
             "banner_timeout": target.timeout,
             "auth_timeout": target.timeout,
+            "ssh_strict": True,
+            "system_host_keys": True,
+            "use_keys": False,
+            "allow_agent": False,
         }
         if credentials.secret:
             params["secret"] = credentials.secret
