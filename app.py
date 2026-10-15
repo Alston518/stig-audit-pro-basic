@@ -32,26 +32,43 @@ def _report_startup_error() -> None:
 
 
 def _self_test() -> None:
-    """Exercise bundled GUI + vault startup with isolated, disposable test data.
-
-    This command never unlocks or exports an operator's existing vault.
-    """
+    """Test the packaged visible unlock screen and the real Basic GUI."""
     import tempfile
     import customtkinter as ctk
-    from stig_audit_pro.basic_app import BasicApp
-    from stig_audit_pro.storage.basic_output_vault import BasicOutputVault
-    with tempfile.TemporaryDirectory(prefix="stig-basic-selftest-") as directory:
-        vault=BasicOutputVault.open_or_create("disposable test password only", Path(directory) / "vault")
-        probe=vault.save("self-test.txt",b"self-test-only")
-        assert vault.read(probe)==("self-test.txt",b"self-test-only")
-        root=ctk.CTk()
-        try:
-            BasicApp(root,vault)
-            root.update_idletasks()
-            root.update()
-        finally:
-            root.destroy()
+    from stig_audit_pro.basic_app import BasicApp, BasicUnlockScreen
 
+    with tempfile.TemporaryDirectory(prefix="stig-basic-selftest-") as directory:
+        location=Path(directory) / "vault"
+        first=ctk.CTk()
+        unlocked=[]
+        try:
+            screen=BasicUnlockScreen(first,unlocked.append,vault_root=location)
+            assert screen.creating
+            screen.password_input.insert(0,"disposable test password only")
+            screen.confirm_input.insert(0,"disposable test password only")
+            screen.attempt_unlock()
+            assert len(unlocked)==1, screen.error_label.cget("text")
+            vault=unlocked[0]
+            saved=vault.save("test.txt",b"private test content")
+            assert vault.read(saved)==("test.txt",b"private test content")
+            screen.panel.destroy()
+            BasicApp(first,vault)
+            first.update_idletasks()
+            first.update()
+        finally:
+            first.destroy()
+
+        second=ctk.CTk()
+        reopened=[]
+        try:
+            screen=BasicUnlockScreen(second,reopened.append,vault_root=location)
+            assert not screen.creating
+            screen.password_input.insert(0,"disposable test password only")
+            screen.attempt_unlock()
+            assert len(reopened)==1, screen.error_label.cget("text")
+            assert reopened[0].read(saved)[1]==b"private test content"
+        finally:
+            second.destroy()
 
 def main() -> None:
     try:
