@@ -243,6 +243,7 @@ class BasicApp:
         self.template_tabs.set("IOS XE")
         out=ctk.CTkFrame(audit); out.pack(fill="x",padx=12,pady=4); self.output_dir=ctk.CTkEntry(out); self.output_dir.pack(side="left",fill="x",expand=True,padx=4); self.output_dir.insert(0,str(self.workspace/"Completed CKLs")); ctk.CTkButton(out,text="Choose output folder",command=self.browse_output).pack(side="left",padx=4)
         formats=ctk.CTkFrame(audit); formats.pack(fill="x",padx=12,pady=4); ctk.CTkLabel(formats,text="Create:").pack(side="left",padx=4); self.txt_var=ctk.BooleanVar(value=True); self.ckl_var=ctk.BooleanVar(value=True); ctk.CTkCheckBox(formats,text="TXT report",variable=self.txt_var).pack(side="left",padx=8); ctk.CTkCheckBox(formats,text="CKL checklist",variable=self.ckl_var).pack(side="left",padx=8)
+        ctk.CTkButton(audit,text='Export decrypted vault report (plaintext)',command=self.export_from_vault).pack(anchor='w',padx=16,pady=4)
         actions=ctk.CTkFrame(audit); actions.pack(fill="x",padx=12,pady=8); ctk.CTkButton(actions,text="Start Audit",command=self.start).pack(side="left",padx=4); ctk.CTkButton(actions,text="Cancel",command=lambda:self.cancel_event.set()).pack(side="left",padx=4); self.status=ctk.CTkLabel(audit,text="Ready"); self.status.pack(anchor="w",padx=16)
 
     def _build_summary(self,tab):
@@ -260,6 +261,20 @@ class BasicApp:
         ctk.CTkButton(row,text='Save encrypted summary',command=self.export_summary).pack(side='right',padx=5)
         ctk.CTkButton(row,text='Preview',command=self.preview_summary).pack(side='right',padx=5)
         self.summary_box=ctk.CTkTextbox(tab);self.summary_box.pack(fill='both',expand=True,padx=12,pady=8);self.summary_box.insert('1.0','Run an audit first. The summary covers only devices in that run.')
+
+    def export_from_vault(self):
+        """Explicit plaintext export; never write decrypted temporary files."""
+        source=self.filedialog.askopenfilename(title="Select encrypted report",initialdir=str(self.vault.root),filetypes=[("Encrypted Basic report","*.sapenc")])
+        if not source:return
+        if not self.messagebox.askyesno("Unencrypted export","This will create a readable plaintext file outside the vault. Continue?"):return
+        try:
+            name,content=self.vault.read(source)
+            destination=self.filedialog.asksaveasfilename(title="Save UNENCRYPTED report",initialfile=name,defaultextension=Path(name).suffix)
+            if not destination:return
+            with Path(destination).open("xb") as handle:handle.write(content)
+            self.messagebox.showinfo("Plaintext exported","Report saved unencrypted. Protect or dispose of it per local policy.")
+        except (OSError,ValueError,VaultError) as exc:
+            self.messagebox.showerror("Export failed",str(exc))
 
     def _summary_filter(self):
         groups={'All results':frozenset(STATUSES),'Open only':frozenset({'Open'}),'Not a Finding only':frozenset({'NotAFinding'}),
