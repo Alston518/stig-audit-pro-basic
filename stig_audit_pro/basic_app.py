@@ -6,10 +6,11 @@ from pathlib import Path
 from stig_audit_pro.application.audit_service import AuditService
 from stig_audit_pro.core.ssh_runner import DeviceCredentials
 from stig_audit_pro.core.yaml_loader import ConfigValidationError, load_check_library, load_profile
-from stig_audit_pro.reports.audit_report import write_text_report
-from stig_audit_pro.reports.basic_summary import Filter, STATUSES, CATS, cat, summarize, export_csv, export_html, export_pdf
-from stig_audit_pro.stig.ckl_writer import write_completed_ckl
+from stig_audit_pro.reports.audit_report import build_text_report
+from stig_audit_pro.reports.basic_summary import Filter, STATUSES, CATS, cat, summarize, render_csv, render_html, render_pdf
+from stig_audit_pro.stig.ckl_writer import render_completed_ckl
 from stig_audit_pro.storage.device_groups import DeviceTargetRecord
+from stig_audit_pro.storage.basic_output_vault import BasicOutputVault, VaultError, default_vault_root
 from stig_audit_pro.licensing import LicenseImportError, LicensePolicyError
 from stig_audit_pro.licensing.basic_policy import BasicLicensePolicy, normalize_basic_targets
 
@@ -169,11 +170,12 @@ def report_stem(asset, scan_ip: str, families: list[str], when: datetime | None 
     return f"{octet}_{platform}_{label}_{date_text}"
 
 class BasicApp:
-    def __init__(self, root):
+    def __init__(self, root, vault):
         import customtkinter as ctk
         from tkinter import filedialog, messagebox
         from platformdirs import user_documents_dir
         self.root, self.ctk, self.filedialog, self.messagebox = root, ctk, filedialog, messagebox
+        self.vault = vault
         self.events, self.cancel_event, self.thread = queue.Queue(), threading.Event(), None
         self.last_results,self.last_targets,self.last_families,self.last_run_id=[],[],[],''
         self.license_policy = BasicLicensePolicy()
