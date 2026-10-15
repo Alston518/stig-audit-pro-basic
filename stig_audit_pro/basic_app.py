@@ -446,19 +446,39 @@ def run_basic_gui():
     from tkinter import simpledialog, messagebox
     root=ctk.CTk()
     root.withdraw()
-    try:
+    # Validation errors should prompt a retry, not silently close a windowed EXE.
+    vault=None
+    for attempt in range(3):
         creating=not (default_vault_root() / "vault.json").exists()
         title="Create vault password" if creating else "Unlock encrypted workspace"
-        password=simpledialog.askstring(title,"Enter encryption password (12+ characters for a new vault).",show="*",parent=root)
-        if password is None:return
+        password=simpledialog.askstring(title,"Enter vault password (at least 12 characters when creating one):",show="*",parent=root)
+        if password is None:
+            root.destroy()
+            return
+        if creating and len(password) < 12:
+            root.deiconify()
+            messagebox.showerror("Password too short","Use at least 12 characters for a new vault.",parent=root)
+            root.withdraw()
+            continue
         if creating:
-            confirm=simpledialog.askstring("Confirm password","Repeat password:",show="*",parent=root)
-            if confirm != password:
-                messagebox.showerror("Password mismatch","Passwords do not match.",parent=root)
+            confirm=simpledialog.askstring("Confirm password","Repeat the new vault password:",show="*",parent=root)
+            if confirm is None:
+                root.destroy()
                 return
-        vault=BasicOutputVault.open_or_create(password)
-    except (OSError,ValueError,VaultError) as exc:
-        messagebox.showerror("Workspace locked",str(exc),parent=root)
+            if confirm != password:
+                root.deiconify()
+                messagebox.showerror("Password mismatch","Passwords do not match. Please try again.",parent=root)
+                root.withdraw()
+                continue
+        try:
+            vault=BasicOutputVault.open_or_create(password)
+            break
+        except (OSError,ValueError,VaultError) as exc:
+            root.deiconify()
+            messagebox.showerror("Workspace locked",str(exc),parent=root)
+            root.withdraw()
+    if vault is None:
+        root.destroy()
         return
     root.deiconify()
     BasicApp(root,vault)
