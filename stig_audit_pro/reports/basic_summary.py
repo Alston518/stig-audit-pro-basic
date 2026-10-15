@@ -1,6 +1,7 @@
 """Combined reports for devices in one Basic audit run."""
 from __future__ import annotations
 import csv
+import io
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -51,13 +52,17 @@ def _detail(r):
     return [r.hostname,r.ip,r.stig_family,cat(r.severity),r.status,r.vuln_id,r.title,
             r.finding_details,r.comments,r.evaluation_reason,r.error_message or '']
 
+def render_csv(report):
+    stream=io.StringIO(newline='')
+    writer=csv.writer(stream)
+    writer.writerow(['Switch','IP','Family','Category','Status','Vuln ID','Title',
+                     'Finding details','Comments','Evaluation reason','Error'])
+    for r in report['details']:writer.writerow(safe_spreadsheet_row(_detail(r)))
+    return stream.getvalue().encode('utf-8-sig')
+
 def export_csv(report,path):
     path=Path(path);path.parent.mkdir(parents=True,exist_ok=True)
-    with path.open('w',encoding='utf-8-sig',newline='') as f:
-        writer=csv.writer(f)
-        writer.writerow(['Switch','IP','Family','Category','Status','Vuln ID','Title',
-                         'Finding details','Comments','Evaluation reason','Error'])
-        for r in report['details']:writer.writerow(safe_spreadsheet_row(_detail(r)))
+    path.write_bytes(render_csv(report))
     return path
 
 def _bars(items):
@@ -68,8 +73,7 @@ def _bars(items):
         lines.append(f'<text x="0" y="{y+18}">{escape(label)}</text><rect x="165" y="{y+3}" width="{width}" height="20" fill="{color}"/><text x="{175+width}" y="{y+18}">{count}</text>')
     return ''.join(lines)+'</svg>'
 
-def export_html(report,path):
-    path=Path(path);path.parent.mkdir(parents=True,exist_ok=True)
+def render_html(report):
     status_chart=_bars([(s,report['status'][s],COLORS[s]) for s in STATUSES])
     cat_chart=_bars([(c,report['open_by_cat'][c],'#b42318') for c in CATS[:3]])
     switches=[]
@@ -90,15 +94,19 @@ def export_html(report,path):
 <h2>Open findings by switch</h2><div class="scroll"><table><tr><th>Switch</th><th>IP</th><th>CAT I</th><th>CAT II</th><th>CAT III</th><th>All open</th></tr>{''.join(switches)}</table></div>
 <h2>Filtered check details</h2><p>{escape(selected)}. {len(report['details'])} matching results.</p>
 <div class="scroll"><table><tr>{''.join('<th>'+escape(x)+'</th>' for x in ['Switch','IP','Family','Category','Status','Vuln ID','Title','Finding details','Comments','Evaluation reason','Error'])}</tr>{''.join(detail_rows)}</table></div></html>'''
-    path.write_text(html,encoding='utf-8');return path
+    return html.encode('utf-8')
 
-def export_pdf(report,path):
+def export_html(report,path):
+    path=Path(path);path.parent.mkdir(parents=True,exist_ok=True)
+    path.write_bytes(render_html(report));return path
+
+def render_pdf(report):
     from reportlab.graphics.shapes import Drawing,Rect,String
     from reportlab.lib import colors
     from reportlab.lib.styles import getSampleStyleSheet
     from reportlab.lib.units import inch
     from reportlab.platypus import SimpleDocTemplate,Paragraph,Spacer,Table,TableStyle,KeepTogether
-    path=Path(path);path.parent.mkdir(parents=True,exist_ok=True)
+    buffer=io.BytesIO()
     styles=getSampleStyleSheet();story=[Paragraph('Overall audit summary',styles['Title']),
         Paragraph('Current audit run only. Generated '+report['generated'].strftime('%Y-%m-%d %H:%M UTC'),styles['Normal']),Spacer(1,10)]
     def section(title):story.extend([Spacer(1,12),Paragraph(title,styles['Heading2'])])
@@ -131,5 +139,10 @@ def export_pdf(report,path):
             if value:block.append(Paragraph(escape(label+': '+value),styles['Normal']))
         block.append(Spacer(1,5));story.append(KeepTogether(block))
     if not report['details']:story.append(Paragraph('No results match the selected filters.',styles['Normal']))
-    SimpleDocTemplate(str(path),pagesize=(8.5*inch,11*inch),leftMargin=40,rightMargin=40,topMargin=42,bottomMargin=42).build(story)
+    SimpleDocTemplate(buffer,pagesize=(8.5*inch,11*inch),leftMargin=40,rightMargin=40,topMargin=42,bottomMargin=42).build(story)
+    return buffer.getvalue()
+
+def export_pdf(report,path):
+    path=Path(path);path.parent.mkdir(parents=True,exist_ok=True)
+    path.write_bytes(render_pdf(report))
     return path
