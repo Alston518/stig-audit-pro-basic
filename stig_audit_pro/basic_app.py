@@ -215,7 +215,7 @@ class BasicApp:
         self.license_panel=BasicLicensePanel(license_tab,self.import_license_file,self.refresh_license_status)
         self.license_panel.pack(fill="both",expand=True)
         self.results_box=ctk.CTkTextbox(result); self.results_box.pack(fill="both", expand=True, padx=12, pady=12)
-        ctk.CTkLabel(help_, justify="left", text="Paste device IPs or import CSV/TXT, then click Select devices.\nFree Basic runs one selected device per audit; your full list stays in the box.\nImport a signed license on the License tab for its batch limit and enabled features.\nChoose IOS XE or IOS, a STIG family, and a profile.\nSample outputs are available for IOS XE only; Live SSH uses approved read-only commands.\nChoose a blank CKL template matching the selected platform and STIG family.\nTemplates default to this package's Checklist Templates folder. Browse saves the chosen path.\nAfter a run, use Summary to export combined PDF, HTML, or CSV for that run.\nCredentials are held in memory only and are never saved.\n\nEditable checks and profiles are beside this application in the data folder.\nIOS starter checks require review against the approved benchmark and real IOS output.").pack(anchor="nw", padx=18, pady=18)
+        ctk.CTkLabel(help_, justify="left", text="Audit reports are encrypted by default. Decrypted exports require explicit action and are NOT protected by the vault.\\nSite profiles, imported files, and existing plaintext exports are NOT encrypted.\\nPaste device IPs or import CSV/TXT, then click Select devices.\nFree Basic runs one selected device per audit; your full list stays in the box.\nImport a signed license on the License tab for its batch limit and enabled features.\nChoose IOS XE or IOS, a STIG family, and a profile.\nSample outputs are available for IOS XE only; Live SSH uses approved read-only commands.\nChoose a blank CKL template matching the selected platform and STIG family.\nTemplates default to this package's Checklist Templates folder. Browse saves the chosen path.\nAfter a run, use Summary to export combined PDF, HTML, or CSV for that run.\nCredentials are held in memory only and are never saved.\n\nEditable checks and profiles are beside this application in the data folder.\nIOS starter checks require review against the approved benchmark and real IOS output.").pack(anchor="nw", padx=18, pady=18)
         self.devices=ctk.CTkTextbox(audit,height=100); self.devices.pack(fill="x", padx=12, pady=8); self.devices.insert("1.0","192.0.2.10\n")
         self.devices.bind('<KeyRelease>', lambda _: self.sync_selected_devices())
         selection_row=ctk.CTkFrame(audit);selection_row.pack(fill='x',padx=12,pady=4)
@@ -307,7 +307,7 @@ class BasicApp:
             report=summarize(self.last_results,self._summary_filter(),self.last_targets)
             stem='OVERALL_SUMMARY_'+self.last_run_id[:8]+'_'+datetime.now().strftime('%Y%m%d_%H%M%S_%f')
             paths=[self.vault.save(f'{stem}.{ext}',writer(report)) for ext,enabled,writer in choices if enabled]
-        except (LicensePolicyError,OSError,ValueError) as exc:self.messagebox.showerror('Summary not exported',str(exc));return []
+        except (LicensePolicyError,OSError,ValueError,VaultError) as exc:self.messagebox.showerror('Summary not exported',str(exc));return []
         self.preview_summary();self.messagebox.showinfo('Summary exported','Created:\n'+'\n'.join(str(p) for p in paths));return paths
 
     def _profiles(self): return [p.stem for p in sorted((self.data_root/"profiles").glob("*.yaml"))] or ["base_iosxe_access"]
