@@ -257,7 +257,7 @@ class BasicApp:
         row=ctk.CTkFrame(tab);row.pack(fill='x',padx=12,pady=4)
         self.summary_pdf=ctk.BooleanVar(value=True);self.summary_html=ctk.BooleanVar(value=True);self.summary_csv=ctk.BooleanVar(value=True)
         for label,var in [('PDF with charts',self.summary_pdf),('HTML with charts',self.summary_html),('CSV details',self.summary_csv)]:ctk.CTkCheckBox(row,text=label,variable=var).pack(side='left',padx=8,pady=5)
-        ctk.CTkButton(row,text='Export summary',command=self.export_summary).pack(side='right',padx=5)
+        ctk.CTkButton(row,text='Save encrypted summary',command=self.export_summary).pack(side='right',padx=5)
         ctk.CTkButton(row,text='Preview',command=self.preview_summary).pack(side='right',padx=5)
         self.summary_box=ctk.CTkTextbox(tab);self.summary_box.pack(fill='both',expand=True,padx=12,pady=8);self.summary_box.insert('1.0','Run an audit first. The summary covers only devices in that run.')
 
@@ -285,14 +285,13 @@ class BasicApp:
 
     def export_summary(self):
         if not self.last_targets:self.messagebox.showerror('No audit results','Run an audit first.');return []
-        choices=[('pdf',self.summary_pdf.get(),export_pdf),('html',self.summary_html.get(),export_html),('csv',self.summary_csv.get(),export_csv)]
+        choices=[('pdf',self.summary_pdf.get(),render_pdf),('html',self.summary_html.get(),render_html),('csv',self.summary_csv.get(),render_csv)]
         if not any(enabled for _,enabled,_ in choices):self.messagebox.showerror('Choose format','Select PDF, HTML, or CSV.');return []
         try:
             self.license_policy.validate(self.last_targets,self.last_families,True,False)
             report=summarize(self.last_results,self._summary_filter(),self.last_targets)
-            folder=Path(self.output_dir.get()).expanduser();folder.mkdir(parents=True,exist_ok=True)
             stem='OVERALL_SUMMARY_'+self.last_run_id[:8]+'_'+datetime.now().strftime('%Y%m%d_%H%M%S_%f')
-            paths=[writer(report,folder/f'{stem}.{ext}') for ext,enabled,writer in choices if enabled]
+            paths=[self.vault.save(f'{stem}.{ext}',writer(report)) for ext,enabled,writer in choices if enabled]
         except (LicensePolicyError,OSError,ValueError) as exc:self.messagebox.showerror('Summary not exported',str(exc));return []
         self.preview_summary();self.messagebox.showinfo('Summary exported','Created:\n'+'\n'.join(str(p) for p in paths));return paths
 
