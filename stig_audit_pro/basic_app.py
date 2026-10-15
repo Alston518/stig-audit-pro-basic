@@ -475,7 +475,8 @@ class BasicUnlockScreen:
         self.password_input.bind("<Return>", lambda _event: self.attempt_unlock())
         if self.confirm_input is not None:
             self.confirm_input.bind("<Return>", lambda _event: self.attempt_unlock())
-        root.after(50, self.password_input.focus_set)
+        root.after(50, lambda: self.password_input.focus_set() if self.password_input.winfo_exists() else None)
+        root.deiconify()
 
     def attempt_unlock(self):
         password = self.password_input.get()
