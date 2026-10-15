@@ -1,0 +1,53 @@
+name: Build Encrypted Basic Windows Candidate
+
+on:
+  push:
+    branches:
+      - security/basic-encrypted-reports
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Run Python tests
+        run: python -m pytest -q
+      - name: Build executable
+        run: python -m PyInstaller --noconfirm "STIG Audit Basic.spec"
+      - name: Create Windows candidate ZIP
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path "candidate/Application" | Out-Null
+          Copy-Item -Recurse -Force "dist/STIG Audit Basic/*" "candidate/Application/"
+          @'
+          @echo off
+          cd /d "%~dp0"
+          start "" "Application\STIG Audit Basic.exe"
+          '@ | Set-Content -Path "candidate/START BASIC AUDIT.cmd" -Encoding Ascii
+          @'
+          STIG Audit Pro Basic - ENCRYPTION TEST CANDIDATE
+          This is NOT an approved public release.
+          Extract the entire ZIP. Run START BASIC AUDIT.cmd.
+          The app asks to create a password on first launch and unlock on later launches.
+          Audit TXT, CKL, PDF, HTML and CSV report outputs are saved encrypted in your vault.
+          Site profiles, imported files and manually exported plaintext are NOT encrypted.
+          Do not use with production-sensitive data until independently approved.
+          '@ | Set-Content -Path "candidate/READ ME FIRST.txt" -Encoding UTF8
+          if (-not (Test-Path "candidate/Application/STIG Audit Basic.exe")) { throw "Missing exe" }
+          Compress-Archive -Path "candidate/*" -DestinationPath "STIG_Audit_Basic_Encrypted_Windows_CANDIDATE.zip" -CompressionLevel Optimal
+          Get-FileHash "STIG_Audit_Basic_Encrypted_Windows_CANDIDATE.zip" -Algorithm SHA256 | Format-List
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stig-audit-basic-encrypted-windows-candidate
+          path: STIG_Audit_Basic_Encrypted_Windows_CANDIDATE.zip
+          if-no-files-found: error
+          retention-days: 14
