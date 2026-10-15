@@ -23,10 +23,40 @@ jobs:
         run: python -m pytest -q
       - name: Build executable
         run: python -m PyInstaller --noconfirm "STIG Audit Basic.spec"
+      - name: Smoke test packaged GUI and encryption vault
+        shell: pwsh
+        run: |
+          $program = Resolve-Path "dist/STIG Audit Basic/STIG Audit Basic.exe"
+          $run = Start-Process -FilePath $program -ArgumentList "--self-test" -Wait -PassThru
+          if ($run.ExitCode -ne 0) {
+            Write-Host "Bundled executable failed its GUI/vault self-test. Exit code: $($run.ExitCode)"
+            $root = Join-Path $env:LOCALAPPDATA "STIG Audit Pro Basic"
+            if (Test-Path $root) {
+              Get-ChildItem $root -File -Recurse -Filter "startup-error.log" | ForEach-Object {
+                Get-Content -LiteralPath $_.FullName | Select-Object -Last 70
+              }
+            }
+            throw "Packaged executable smoke test failed"
+          }
+          Write-Host "Packaged GUI and AES vault self-test passed"
       - name: Create Windows candidate ZIP
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path "candidate/Application" | Out-Null
+          @'
+          @echo off
+          cd /d "%~dp0"
+          echo STIG Audit Pro Basic diagnostic startup
+          "Application\\STIG Audit Basic.exe" --self-test
+          if errorlevel 1 (
+            echo Packaged GUI self-test failed. Check %%LOCALAPPDATA%%\STIG Audit Pro Basic\logs\startup-error.log
+            pause
+            exit /b 1
+          )
+          echo Packaged GUI self-test passed.
+          pause
+          '@ | Set-Content -Path "candidate/DIAGNOSTIC SELF-TEST.cmd" -Encoding Ascii
+
           Copy-Item -Recurse -Force "dist/STIG Audit Basic/*" "candidate/Application/"
           @'
           @echo off
