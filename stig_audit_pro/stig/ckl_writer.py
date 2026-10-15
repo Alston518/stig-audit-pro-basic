@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ipaddress
+import io
 import re
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
@@ -84,6 +85,15 @@ def write_completed_ckl(
 ) -> CklWriteSummary:
     """Copy a CKL template and populate asset and vulnerability result fields."""
 
+    contents, updated, unmatched = render_completed_ckl(source_path, results, asset, append_comments=append_comments)
+    destination = Path(destination_path)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_bytes(contents)
+    return CklWriteSummary(path=destination, updated_vuln_ids=updated, unmatched_result_ids=unmatched)
+
+
+def render_completed_ckl(source_path: str | Path, results: list[CheckResult], asset: CklAsset, *, append_comments: bool = True) -> tuple[bytes, tuple[str, ...], tuple[str, ...]]:
+    """Create CKL bytes in memory without writing decrypted audit results to disk."""
     tree = _parse_ckl(source_path)
     root = tree.getroot()
     if _local_name(root.tag) != "CHECKLIST":
@@ -117,21 +127,11 @@ def write_completed_ckl(
         _set_child_text(vuln, "COMMENTS", generated_comment)
         updated.append(vuln_id)
 
-    destination = Path(destination_path)
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        ET.indent(tree, space="  ")
-        tree.write(destination, encoding="utf-8", xml_declaration=True)
-    except OSError as exc:
-        raise CklError(f"Could not write completed CKL {destination}: {exc}") from exc
-
+    ET.indent(tree, space="  ")
+    output = io.BytesIO()
+    tree.write(output, encoding="utf-8", xml_declaration=True)
     unmatched = sorted(set(results_by_vuln) - set(updated))
-    return CklWriteSummary(
-        path=destination,
-        updated_vuln_ids=tuple(sorted(updated)),
-        unmatched_result_ids=tuple(unmatched),
-    )
-
+    return output.getvalue(), tuple(sorted(updated)), tuple(unmatched)
 
 def safe_device_filename(value: str) -> str:
     cleaned = re.sub(r"[^A-Za-z0-9._-]+", "_", value.strip())

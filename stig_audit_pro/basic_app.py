@@ -6,10 +6,11 @@ from pathlib import Path
 from stig_audit_pro.application.audit_service import AuditService
 from stig_audit_pro.core.ssh_runner import DeviceCredentials
 from stig_audit_pro.core.yaml_loader import ConfigValidationError, load_check_library, load_profile
-from stig_audit_pro.reports.audit_report import write_text_report
-from stig_audit_pro.reports.basic_summary import Filter, STATUSES, CATS, cat, summarize, export_csv, export_html, export_pdf
-from stig_audit_pro.stig.ckl_writer import write_completed_ckl
+from stig_audit_pro.reports.audit_report import build_text_report
+from stig_audit_pro.reports.basic_summary import Filter, STATUSES, CATS, cat, summarize, render_csv, render_html, render_pdf
+from stig_audit_pro.stig.ckl_writer import render_completed_ckl
 from stig_audit_pro.storage.device_groups import DeviceTargetRecord
+from stig_audit_pro.storage.basic_output_vault import BasicOutputVault, VaultError, default_vault_root
 from stig_audit_pro.licensing import LicenseImportError, LicensePolicyError
 from stig_audit_pro.licensing.basic_policy import BasicLicensePolicy, normalize_basic_targets
 
@@ -169,11 +170,12 @@ def report_stem(asset, scan_ip: str, families: list[str], when: datetime | None 
     return f"{octet}_{platform}_{label}_{date_text}"
 
 class BasicApp:
-    def __init__(self, root):
+    def __init__(self, root, vault):
         import customtkinter as ctk
         from tkinter import filedialog, messagebox
         from platformdirs import user_documents_dir
         self.root, self.ctk, self.filedialog, self.messagebox = root, ctk, filedialog, messagebox
+        self.vault = vault
         self.events, self.cancel_event, self.thread = queue.Queue(), threading.Event(), None
         self.last_results,self.last_targets,self.last_families,self.last_run_id=[],[],[],''
         self.license_policy = BasicLicensePolicy()
@@ -213,7 +215,7 @@ class BasicApp:
         self.license_panel=BasicLicensePanel(license_tab,self.import_license_file,self.refresh_license_status)
         self.license_panel.pack(fill="both",expand=True)
         self.results_box=ctk.CTkTextbox(result); self.results_box.pack(fill="both", expand=True, padx=12, pady=12)
-        ctk.CTkLabel(help_, justify="left", text="Paste device IPs or import CSV/TXT, then click Select devices.\nFree Basic runs one selected device per audit; your full list stays in the box.\nImport a signed license on the License tab for its batch limit and enabled features.\nChoose IOS XE or IOS, a STIG family, and a profile.\nSample outputs are available for IOS XE only; Live SSH uses approved read-only commands.\nChoose a blank CKL template matching the selected platform and STIG family.\nTemplates default to this package's Checklist Templates folder. Browse saves the chosen path.\nAfter a run, use Summary to export combined PDF, HTML, or CSV for that run.\nCredentials are held in memory only and are never saved.\n\nEditable checks and profiles are beside this application in the data folder.\nIOS starter checks require review against the approved benchmark and real IOS output.").pack(anchor="nw", padx=18, pady=18)
+        ctk.CTkLabel(help_, justify="left", text="Audit reports are encrypted by default. Decrypted exports require explicit action and are NOT protected by the vault.\\nSite profiles, imported files, and existing plaintext exports are NOT encrypted.\\nPaste device IPs or import CSV/TXT, then click Select devices.\nFree Basic runs one selected device per audit; your full list stays in the box.\nImport a signed license on the License tab for its batch limit and enabled features.\nChoose IOS XE or IOS, a STIG family, and a profile.\nSample outputs are available for IOS XE only; Live SSH uses approved read-only commands.\nChoose a blank CKL template matching the selected platform and STIG family.\nTemplates default to this package's Checklist Templates folder. Browse saves the chosen path.\nAfter a run, use Summary to export combined PDF, HTML, or CSV for that run.\nCredentials are held in memory only and are never saved.\n\nEditable checks and profiles are beside this application in the data folder.\nIOS starter checks require review against the approved benchmark and real IOS output.").pack(anchor="nw", padx=18, pady=18)
         self.devices=ctk.CTkTextbox(audit,height=100); self.devices.pack(fill="x", padx=12, pady=8); self.devices.insert("1.0","192.0.2.10\n")
         self.devices.bind('<KeyRelease>', lambda _: self.sync_selected_devices())
         selection_row=ctk.CTkFrame(audit);selection_row.pack(fill='x',padx=12,pady=4)
@@ -241,6 +243,7 @@ class BasicApp:
         self.template_tabs.set("IOS XE")
         out=ctk.CTkFrame(audit); out.pack(fill="x",padx=12,pady=4); self.output_dir=ctk.CTkEntry(out); self.output_dir.pack(side="left",fill="x",expand=True,padx=4); self.output_dir.insert(0,str(self.workspace/"Completed CKLs")); ctk.CTkButton(out,text="Choose output folder",command=self.browse_output).pack(side="left",padx=4)
         formats=ctk.CTkFrame(audit); formats.pack(fill="x",padx=12,pady=4); ctk.CTkLabel(formats,text="Create:").pack(side="left",padx=4); self.txt_var=ctk.BooleanVar(value=True); self.ckl_var=ctk.BooleanVar(value=True); ctk.CTkCheckBox(formats,text="TXT report",variable=self.txt_var).pack(side="left",padx=8); ctk.CTkCheckBox(formats,text="CKL checklist",variable=self.ckl_var).pack(side="left",padx=8)
+        ctk.CTkButton(audit,text='Export decrypted vault report (plaintext)',command=self.export_from_vault).pack(anchor='w',padx=16,pady=4)
         actions=ctk.CTkFrame(audit); actions.pack(fill="x",padx=12,pady=8); ctk.CTkButton(actions,text="Start Audit",command=self.start).pack(side="left",padx=4); ctk.CTkButton(actions,text="Cancel",command=lambda:self.cancel_event.set()).pack(side="left",padx=4); self.status=ctk.CTkLabel(audit,text="Ready"); self.status.pack(anchor="w",padx=16)
 
     def _build_summary(self,tab):
@@ -255,9 +258,23 @@ class BasicApp:
         row=ctk.CTkFrame(tab);row.pack(fill='x',padx=12,pady=4)
         self.summary_pdf=ctk.BooleanVar(value=True);self.summary_html=ctk.BooleanVar(value=True);self.summary_csv=ctk.BooleanVar(value=True)
         for label,var in [('PDF with charts',self.summary_pdf),('HTML with charts',self.summary_html),('CSV details',self.summary_csv)]:ctk.CTkCheckBox(row,text=label,variable=var).pack(side='left',padx=8,pady=5)
-        ctk.CTkButton(row,text='Export summary',command=self.export_summary).pack(side='right',padx=5)
+        ctk.CTkButton(row,text='Save encrypted summary',command=self.export_summary).pack(side='right',padx=5)
         ctk.CTkButton(row,text='Preview',command=self.preview_summary).pack(side='right',padx=5)
         self.summary_box=ctk.CTkTextbox(tab);self.summary_box.pack(fill='both',expand=True,padx=12,pady=8);self.summary_box.insert('1.0','Run an audit first. The summary covers only devices in that run.')
+
+    def export_from_vault(self):
+        """Explicit plaintext export; never write decrypted temporary files."""
+        source=self.filedialog.askopenfilename(title="Select encrypted report",initialdir=str(self.vault.root),filetypes=[("Encrypted Basic report","*.sapenc")])
+        if not source:return
+        if not self.messagebox.askyesno("Unencrypted export","This will create a readable plaintext file outside the vault. Continue?"):return
+        try:
+            name,content=self.vault.read(source)
+            destination=self.filedialog.asksaveasfilename(title="Save UNENCRYPTED report",initialfile=name,defaultextension=Path(name).suffix)
+            if not destination:return
+            with Path(destination).open("xb") as handle:handle.write(content)
+            self.messagebox.showinfo("Plaintext exported","Report saved unencrypted. Protect or dispose of it per local policy.")
+        except (OSError,ValueError,VaultError) as exc:
+            self.messagebox.showerror("Export failed",str(exc))
 
     def _summary_filter(self):
         groups={'All results':frozenset(STATUSES),'Open only':frozenset({'Open'}),'Not a Finding only':frozenset({'NotAFinding'}),
@@ -283,15 +300,14 @@ class BasicApp:
 
     def export_summary(self):
         if not self.last_targets:self.messagebox.showerror('No audit results','Run an audit first.');return []
-        choices=[('pdf',self.summary_pdf.get(),export_pdf),('html',self.summary_html.get(),export_html),('csv',self.summary_csv.get(),export_csv)]
+        choices=[('pdf',self.summary_pdf.get(),render_pdf),('html',self.summary_html.get(),render_html),('csv',self.summary_csv.get(),render_csv)]
         if not any(enabled for _,enabled,_ in choices):self.messagebox.showerror('Choose format','Select PDF, HTML, or CSV.');return []
         try:
             self.license_policy.validate(self.last_targets,self.last_families,True,False)
             report=summarize(self.last_results,self._summary_filter(),self.last_targets)
-            folder=Path(self.output_dir.get()).expanduser();folder.mkdir(parents=True,exist_ok=True)
             stem='OVERALL_SUMMARY_'+self.last_run_id[:8]+'_'+datetime.now().strftime('%Y%m%d_%H%M%S_%f')
-            paths=[writer(report,folder/f'{stem}.{ext}') for ext,enabled,writer in choices if enabled]
-        except (LicensePolicyError,OSError,ValueError) as exc:self.messagebox.showerror('Summary not exported',str(exc));return []
+            paths=[self.vault.save(f'{stem}.{ext}',writer(report)) for ext,enabled,writer in choices if enabled]
+        except (LicensePolicyError,OSError,ValueError,VaultError) as exc:self.messagebox.showerror('Summary not exported',str(exc));return []
         self.preview_summary();self.messagebox.showinfo('Summary exported','Created:\n'+'\n'.join(str(p) for p in paths));return paths
 
     def _profiles(self): return [p.stem for p in sorted((self.data_root/"profiles").glob("*.yaml"))] or ["base_iosxe_access"]
@@ -399,18 +415,18 @@ class BasicApp:
             result=service.run_offline(output_loader=sample_outputs,**kwargs) if mode=="Sample outputs" else service.run_live(credentials=creds,**kwargs)
             # Export is a separate licensed operation; expiry or replacement may have occurred while collecting.
             self.license_policy.validate(addresses,families,make_txt,make_ckl)
-            written=[]; output_dir.mkdir(parents=True,exist_ok=True)
+            written=[]
             if make_txt:
                 for ip, asset in result.assets.items():
                     device_results=[r for r in result.results if r.ip == ip]
-                    written.append(str(write_text_report(device_results, output_dir / f"{report_stem(asset, ip, families)}.txt")))
+                    written.append(str(self.vault.save(f"{report_stem(asset, ip, families)}.txt", build_text_report(device_results).encode("utf-8"))))
             if make_ckl:
                 for ip,asset in result.assets.items():
                     if len(families)>1:
-                        dest=output_dir/f"{report_stem(asset, ip, families)}.ckl";write_completed_ckl(templates["combined"],dest,[r for r in result.results if r.ip==ip],asset);written.append(str(dest));continue
+                        data,*_=render_completed_ckl(templates["combined"],[r for r in result.results if r.ip==ip],asset);written.append(str(self.vault.save(f"{report_stem(asset, ip, families)}.ckl",data)));continue
                     for family in families:
                         template=templates[family]
-                        subset=family_results([r for r in result.results if r.ip==ip],family); dest=output_dir/f"{report_stem(asset, ip, [family])}.ckl";write_completed_ckl(template,dest,subset,asset);written.append(str(dest))
+                        subset=family_results([r for r in result.results if r.ip==ip],family);data,*_=render_completed_ckl(template,subset,asset);written.append(str(self.vault.save(f"{report_stem(asset, ip, [family])}.ckl",data)))
             self.events.put(type("E",(),{"message":"Completed. Files written:\n"+"\n".join(written),"summary_results":list(result.results),"summary_targets":list(addresses),"summary_families":list(families),"summary_run_id":run_id})())
         except Exception as exc:self.events.put(type("E",(),{"message":f"Audit failed: {exc}"})())
     def poll(self):
@@ -425,8 +441,96 @@ class BasicApp:
         except queue.Empty:pass
         if self.thread and self.thread.is_alive():self.root.after(150,self.poll)
     
-def run_basic_gui():
-    import customtkinter as ctk
-    root=ctk.CTk();BasicApp(root);root.mainloop()
 
-__all__=["BasicApp","parse_device_text","parse_device_file","sample_outputs","run_basic_gui"]
+class BasicUnlockScreen:
+    """Unlock inside the real application window, without hidden Tk roots or modal dialogs."""
+
+    def __init__(self, root, on_unlocked, *, vault_root=None):
+        import customtkinter as ctk
+        self.root = root
+        self.on_unlocked = on_unlocked
+        self.vault_root = Path(vault_root) if vault_root is not None else default_vault_root()
+        self.creating = not (self.vault_root / "vault.json").is_file()
+        root.title("STIG Audit Pro Basic — Encrypted Workspace")
+        root.geometry("590x370" if self.creating else "590x300")
+        root.minsize(510, 280)
+        self.panel = ctk.CTkFrame(root)
+        self.panel.pack(fill="both", expand=True, padx=24, pady=24)
+        label = "Create encryption password" if self.creating else "Unlock encrypted workspace"
+        ctk.CTkLabel(self.panel, text=label, font=ctk.CTkFont(size=22, weight="bold")).pack(pady=(18, 6))
+        detail = ("Use 12 or more characters. The password cannot be recovered if lost."
+                  if self.creating else "Enter the password used for your existing encrypted reports.")
+        ctk.CTkLabel(self.panel, text=detail, wraplength=470).pack(pady=(0, 12))
+        self.password_input = ctk.CTkEntry(self.panel, width=360, placeholder_text="Vault password", show="*")
+        self.password_input.pack(pady=5)
+        self.confirm_input = None
+        if self.creating:
+            self.confirm_input = ctk.CTkEntry(self.panel, width=360, placeholder_text="Confirm vault password", show="*")
+            self.confirm_input.pack(pady=5)
+        self.error_label = ctk.CTkLabel(self.panel, text="", text_color="#bd2626", wraplength=470)
+        self.error_label.pack(pady=(8, 0))
+        self.unlock_button = ctk.CTkButton(self.panel, text="Create and open" if self.creating else "Unlock",
+                                           command=self.attempt_unlock, width=180)
+        self.unlock_button.pack(pady=10)
+        self.password_input.bind("<Return>", lambda _event: self.attempt_unlock())
+        if self.confirm_input is not None:
+            self.confirm_input.bind("<Return>", lambda _event: self.attempt_unlock())
+        root.after(50, lambda: self.password_input.focus_set() if self.password_input.winfo_exists() else None)
+        root.deiconify()
+
+    def attempt_unlock(self):
+        password = self.password_input.get()
+        if self.creating and len(password) < 12:
+            self.error_label.configure(text="New passwords must contain at least 12 characters.")
+            return
+        if self.creating and password != self.confirm_input.get():
+            self.error_label.configure(text="Passwords do not match. Please try again.")
+            return
+        self.unlock_button.configure(state="disabled")
+        try:
+            vault = BasicOutputVault.open_or_create(password, self.vault_root)
+        except (OSError, ValueError, VaultError) as exc:
+            self.error_label.configure(text=str(exc))
+            self.unlock_button.configure(state="normal")
+            return
+        self.on_unlocked(vault)
+
+
+def run_basic_gui():
+    """Always run Tk's event loop for the visible unlock and audit workspace."""
+    import customtkinter as ctk
+    import traceback
+    from platformdirs import user_log_path
+    from tkinter import messagebox
+
+    root = ctk.CTk()
+
+    def on_callback_error(exc_type, exc, tb):
+        # Tk normally swallows callback exceptions. In a windowed executable
+        # this would make startup failures completely invisible.
+        details = "".join(traceback.format_exception(exc_type, exc, tb))
+        logfile = None
+        try:
+            logfile = Path(user_log_path("STIG Audit Pro Basic", appauthor=False)) / "startup-error.log"
+            logfile.parent.mkdir(parents=True, exist_ok=True)
+            logfile.write_text(details, encoding="utf-8")
+        except OSError:
+            logfile = None
+        message = "An error occurred while opening the encrypted workspace.\\n\\n" + details[-1200:]
+        if logfile is not None:
+            message += "\\n\\nDiagnostic log: " + str(logfile)
+        try:
+            messagebox.showerror("STIG Audit Pro Basic startup error", message, parent=root)
+        except Exception:
+            pass
+
+    root.report_callback_exception = on_callback_error
+
+    def on_unlocked(vault):
+        screen.panel.destroy()
+        BasicApp(root, vault)
+
+    screen = BasicUnlockScreen(root, on_unlocked)
+    root.mainloop()
+
+__all__=["BasicApp","BasicUnlockScreen","parse_device_text","parse_device_file","sample_outputs","run_basic_gui"]
