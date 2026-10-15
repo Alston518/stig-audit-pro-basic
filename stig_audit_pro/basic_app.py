@@ -441,47 +441,95 @@ class BasicApp:
         except queue.Empty:pass
         if self.thread and self.thread.is_alive():self.root.after(150,self.poll)
     
-def run_basic_gui():
-    import customtkinter as ctk
-    from tkinter import simpledialog, messagebox
-    root=ctk.CTk()
-    root.withdraw()
-    # Validation errors should prompt a retry, not silently close a windowed EXE.
-    vault=None
-    for attempt in range(3):
-        creating=not (default_vault_root() / "vault.json").exists()
-        title="Create vault password" if creating else "Unlock encrypted workspace"
-        password=simpledialog.askstring(title,"Enter vault password (at least 12 characters when creating one):",show="*",parent=root)
-        if password is None:
-            root.destroy()
+
+class BasicUnlockScreen:
+    """Unlock inside the real application window, without hidden Tk roots or modal dialogs."""
+
+    def __init__(self, root, on_unlocked, *, vault_root=None):
+        import customtkinter as ctk
+        self.root = root
+        self.on_unlocked = on_unlocked
+        self.vault_root = Path(vault_root) if vault_root is not None else default_vault_root()
+        self.creating = not (self.vault_root / "vault.json").is_file()
+        root.title("STIG Audit Pro Basic — Encrypted Workspace")
+        root.geometry("590x370" if self.creating else "590x300")
+        root.minsize(510, 280)
+        self.panel = ctk.CTkFrame(root)
+        self.panel.pack(fill="both", expand=True, padx=24, pady=24)
+        label = "Create encryption password" if self.creating else "Unlock encrypted workspace"
+        ctk.CTkLabel(self.panel, text=label, font=ctk.CTkFont(size=22, weight="bold")).pack(pady=(18, 6))
+        detail = ("Use 12 or more characters. The password cannot be recovered if lost."
+                  if self.creating else "Enter the password used for your existing encrypted reports.")
+        ctk.CTkLabel(self.panel, text=detail, wraplength=470).pack(pady=(0, 12))
+        self.password_input = ctk.CTkEntry(self.panel, width=360, placeholder_text="Vault password", show="*")
+        self.password_input.pack(pady=5)
+        self.confirm_input = None
+        if self.creating:
+            self.confirm_input = ctk.CTkEntry(self.panel, width=360, placeholder_text="Confirm vault password", show="*")
+            self.confirm_input.pack(pady=5)
+        self.error_label = ctk.CTkLabel(self.panel, text="", text_color="#bd2626", wraplength=470)
+        self.error_label.pack(pady=(8, 0))
+        self.unlock_button = ctk.CTkButton(self.panel, text="Create and open" if self.creating else "Unlock",
+                                           command=self.attempt_unlock, width=180)
+        self.unlock_button.pack(pady=10)
+        self.password_input.bind("<Return>", lambda _event: self.attempt_unlock())
+        if self.confirm_input is not None:
+            self.confirm_input.bind("<Return>", lambda _event: self.attempt_unlock())
+        root.after(50, self.password_input.focus_set)
+
+    def attempt_unlock(self):
+        password = self.password_input.get()
+        if self.creating and len(password) < 12:
+            self.error_label.configure(text="New passwords must contain at least 12 characters.")
             return
-        if creating and len(password) < 12:
-            root.deiconify()
-            messagebox.showerror("Password too short","Use at least 12 characters for a new vault.",parent=root)
-            root.withdraw()
-            continue
-        if creating:
-            confirm=simpledialog.askstring("Confirm password","Repeat the new vault password:",show="*",parent=root)
-            if confirm is None:
-                root.destroy()
-                return
-            if confirm != password:
-                root.deiconify()
-                messagebox.showerror("Password mismatch","Passwords do not match. Please try again.",parent=root)
-                root.withdraw()
-                continue
+        if self.creating and password != self.confirm_input.get():
+            self.error_label.configure(text="Passwords do not match. Please try again.")
+            return
+        self.unlock_button.configure(state="disabled")
         try:
-            vault=BasicOutputVault.open_or_create(password)
-            break
-        except (OSError,ValueError,VaultError) as exc:
-            root.deiconify()
-            messagebox.showerror("Workspace locked",str(exc),parent=root)
-            root.withdraw()
-    if vault is None:
-        root.destroy()
-        return
-    root.deiconify()
-    BasicApp(root,vault)
+            vault = BasicOutputVault.open_or_create(password, self.vault_root)
+        except (OSError, ValueError, VaultError) as exc:
+            self.error_label.configure(text=str(exc))
+            self.unlock_button.configure(state="normal")
+            return
+        self.on_unlocked(vault)
+
+
+def run_basic_gui():
+    """Always run Tk's event loop for the visible unlock and audit workspace."""
+    import customtkinter as ctk
+    import traceback
+    from platformdirs import user_log_path
+    from tkinter import messagebox
+
+    root = ctk.CTk()
+
+    def on_callback_error(exc_type, exc, tb):
+        # Tk normally swallows callback exceptions. In a windowed executable
+        # this would make startup failures completely invisible.
+        details = "".join(traceback.format_exception(exc_type, exc, tb))
+        logfile = None
+        try:
+            logfile = Path(user_log_path("STIG Audit Pro Basic", appauthor=False)) / "startup-error.log"
+            logfile.parent.mkdir(parents=True, exist_ok=True)
+            logfile.write_text(details, encoding="utf-8")
+        except OSError:
+            logfile = None
+        message = "An error occurred while opening the encrypted workspace.\\n\\n" + details[-1200:]
+        if logfile is not None:
+            message += "\\n\\nDiagnostic log: " + str(logfile)
+        try:
+            messagebox.showerror("STIG Audit Pro Basic startup error", message, parent=root)
+        except Exception:
+            pass
+
+    root.report_callback_exception = on_callback_error
+
+    def on_unlocked(vault):
+        screen.panel.destroy()
+        BasicApp(root, vault)
+
+    screen = BasicUnlockScreen(root, on_unlocked)
     root.mainloop()
 
-__all__=["BasicApp","parse_device_text","parse_device_file","sample_outputs","run_basic_gui"]
+__all__=["BasicApp","BasicUnlockScreen","parse_device_text","parse_device_file","sample_outputs","run_basic_gui"]
