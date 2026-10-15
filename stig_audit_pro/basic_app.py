@@ -428,6 +428,25 @@ class BasicApp:
     
 def run_basic_gui():
     import customtkinter as ctk
-    root=ctk.CTk();BasicApp(root);root.mainloop()
+    from tkinter import simpledialog, messagebox
+    root=ctk.CTk()
+    root.withdraw()
+    try:
+        creating=not (default_vault_root() / "vault.json").exists()
+        title="Create vault password" if creating else "Unlock encrypted workspace"
+        password=simpledialog.askstring(title,"Enter encryption password (12+ characters for a new vault).",show="*",parent=root)
+        if password is None:return
+        if creating:
+            confirm=simpledialog.askstring("Confirm password","Repeat password:",show="*",parent=root)
+            if confirm != password:
+                messagebox.showerror("Password mismatch","Passwords do not match.",parent=root)
+                return
+        vault=BasicOutputVault.open_or_create(password)
+    except (OSError,ValueError,VaultError) as exc:
+        messagebox.showerror("Workspace locked",str(exc),parent=root)
+        return
+    root.deiconify()
+    BasicApp(root,vault)
+    root.mainloop()
 
 __all__=["BasicApp","parse_device_text","parse_device_file","sample_outputs","run_basic_gui"]
