@@ -64,27 +64,15 @@ SSH failure text with safe operator guidance.
 
 ## SSH server identity
 
-Both Basic Netmiko runners use `ssh_strict=True` and
-`system_host_keys=True`. They load the current Windows account's OpenSSH
-`%USERPROFILE%\.ssh\known_hosts` entries and reject unknown or changed SSH
-server keys before any audit command runs. SSH identity keys and the SSH agent
-are disabled for the app's password-based login. The app does not automatically
-trust a device key or provide a bypass switch.
-
-Before a live run, obtain the device's SSH host-key fingerprint from an
-independent approved source such as the network inventory or device console.
-From the **same Windows account** that runs Basic, connect with Windows
-OpenSSH, for example `ssh operator@192.0.2.10`. For a nondefault port, use
-`ssh -p 2222 operator@192.0.2.10`. Compare the fingerprint displayed by
-OpenSSH with the approved fingerprint **before** accepting it. Confirm the
-entry with `ssh-keygen -F 192.0.2.10`, or
-`ssh-keygen -F '[192.0.2.10]:2222'` for that alternate port. `ssh-keyscan`
-alone does not establish trust.
-
-If Basic reports an unknown or changed host key, verify address, port, and
-the device's identity independently. Investigate unexpected changes. After
-an authorized rotation, remove the old entry with `ssh-keygen -R` using the
-same host or `[host]:port` form, then verify and enroll the new fingerprint.
+Basic currently runs with Netmiko `ssh_strict=False` and
+`system_host_keys=False`. It does not load or enforce the current Windows
+account's OpenSSH `%USERPROFILE%\.ssh\known_hosts` file. This temporary
+compatibility setting allows live audits without manual host-key enrollment;
+it also means an unknown or changed server key is not blocked by Basic.
+Treat Live SSH as an approved network-only pilot until host-key enrollment is
+restored. SSH identity keys and the SSH agent remain disabled for the app's
+password-based login, and password and enable-secret fields are cleared when
+a live audit starts.
 The app skips the affected device rather than sending audit commands.
 SSH password and enable-secret entry fields are cleared when a live audit
 starts. Credentials must remain in process memory for the duration of that
@@ -113,7 +101,8 @@ folder: only `.sapenc` reports should be present, and their bytes should not
 contain the sample hostname or finding text. Reopen a report in Results and
 verify that a readable copy appears only after **Export readable copy**.
 The SSH checks use a simulated connection boundary; a live authorized Cisco
-device is still required for an end-to-end network test.
+device is still required for an end-to-end network test. The current tests
+also assert that Basic passes the temporary host-key-disabled settings.
 No cloud AI integration is enabled. A future model-based review would require
 an approved data flow, authorization boundary, retention policy, and offline
 or accredited deployment decision before any device configuration is sent.

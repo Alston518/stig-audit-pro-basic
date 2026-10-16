@@ -43,9 +43,9 @@ Third Party Notices/
 
 RELEASE NOTES
 The executable remains unsigned. Hashes can detect a changed package but do
-not establish publisher identity. No FIPS 140-3 validation is claimed. A live
-authorized Cisco pilot is still required to validate fingerprint enrollment
-and unknown or changed SSH host-key rejection in the target environment.
+not establish publisher identity. No FIPS 140-3 validation is claimed. Basic
+live SSH host-key verification is temporarily disabled for compatibility and
+must be restored before production deployment.
 
 Owner signing tools, private keys, issued customer licenses, internal release
 records, and Pro documentation are intentionally excluded from this public

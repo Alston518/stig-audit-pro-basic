@@ -14,8 +14,8 @@ REPORT RELIABILITY
 SECURITY
 - Reports and summaries remain encrypted .sapenc files at rest. Readable
   output requires an explicit export action and warning.
-- Live SSH requires a trusted server key from the current Windows account's
-  known_hosts file. Unknown or changed keys stop collection.
+- Basic live SSH host-key verification is temporarily disabled for operator
+  compatibility. Production deployment should restore audited enrollment.
 - SSH password and enable-secret fields clear when a live run begins.
 - Raw SSH exception text, vendor transport messages, device identifiers, and
   tracebacks are excluded from the plaintext application log and Results view.

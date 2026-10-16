@@ -24,8 +24,9 @@ until a new release asset is published from the reviewed commit.
 - Reports are rendered in memory and encrypted before they are published to
   the selected output folder. Creating a readable copy requires an explicit
   export action in the Results tab.
-- Live SSH requires a matching server key in the current Windows account's
-  OpenSSH `known_hosts` file. Unknown or changed keys stop collection.
+- Live SSH currently has host-key verification disabled for Basic compatibility.
+  Use network access controls and an approved pilot process while this setting
+  is in effect. This is a temporary exception and is not a secure SSH default.
 - SSH agent and identity-key authentication are disabled. Password and enable
   secret fields are cleared when a live audit begins.
 - The app reports completed, partial, failed, and cancelled runs with the

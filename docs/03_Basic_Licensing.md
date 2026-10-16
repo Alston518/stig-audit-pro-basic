@@ -2,8 +2,9 @@
 
 The 9 October 2026 security update does not change the signed license schema,
 product identifier, production key IDs, feature flags, or Free Basic's
-one-device limit. Report encryption and SSH host-key verification apply to
-free and licensed use. Existing compatible signed Basic licenses remain valid.
+one-device limit. Report encryption applies to free and licensed use. Basic
+live SSH host-key verification is temporarily disabled for compatibility.
+Existing compatible signed Basic licenses remain valid.
 
 ## Free operation
 
@@ -53,7 +54,7 @@ verification keys only.
 
 The signed product identifier remains unchanged for compatibility with
 existing Basic license files. No new entitlement or signing key is required
-for encrypted `.sapenc` reports or strict SSH host-key checking. If a license
+for encrypted `.sapenc` reports or the temporary SSH compatibility setting. If a license
 does not validate, confirm that it was issued for this application, has not
 expired, and has not been modified, then request a replacement from the
 software owner.

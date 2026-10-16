@@ -24,8 +24,9 @@ Result: 34 passed, 0 failed in 4.87 seconds.
 Coverage includes encrypted TXT, CKL, PDF, HTML, and CSV output; wrong
 passphrase and tamper rejection; no plaintext staging; failed and partial run
 reporting; distinct Windows-safe filenames; destination validation; completion
-polling; close-during-run behavior; CSV import; safe SSH error display; strict
-host-key checking in both Basic SSH runners; and public release hygiene.
+polling; close-during-run behavior; CSV import; safe SSH error display; the
+temporary host-key-disabled settings in both Basic SSH runners; and public
+release hygiene.
 
 WINDOWS APPLICATION BUILD
 Command:
@@ -65,9 +66,9 @@ The sanitized PDFs were also checked through text extraction. No known site
 indicator or public license-issuance command remained.
 
 LIMITATIONS
-No live Cisco SSH handshake was performed. A cyber-approved pilot must verify
-independent fingerprint enrollment and rejection of an unknown or changed key
-on an authorized device. The vault protects new report artifacts, excluding
+No live Cisco SSH handshake was performed. Host-key verification is currently
+disabled in Basic for compatibility and must be restored before production
+deployment. The vault protects new report artifacts, excluding
 historical plaintext, editable profiles and checks, licenses, templates,
 endpoint swap, crash dumps, backups, logs, and explicit readable exports.
 A weak nonempty passphrase reduces confidentiality. The executable remains

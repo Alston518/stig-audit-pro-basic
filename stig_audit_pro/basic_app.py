@@ -182,9 +182,7 @@ def report_stem(asset, scan_ip: str, families: list[str], when: datetime | None 
 def _failed_outcome_text(outcome) -> str:
     """Give operators actionable failures without echoing raw SSH exceptions."""
     message = (outcome.error_message or "").casefold()
-    if "host key" in message or "known_hosts" in message:
-        reason = "SSH host key is untrusted or changed; verify the device fingerprint and known_hosts entry"
-    elif outcome.status.value == "AUTH_FAILED":
+    if outcome.status.value == "AUTH_FAILED":
         reason = "SSH authentication failed; check the account and credentials"
     elif outcome.status.value == "CONNECT_FAILED":
         reason = "SSH connection failed; check the address, port, and reachability"
@@ -193,7 +191,7 @@ def _failed_outcome_text(outcome) -> str:
     elif outcome.status.value == "EVALUATION_FAILED":
         reason = "Assessment evaluation failed; review the selected checks and profile"
     else:
-        reason = "Collection failed; check device access and SSH host-key enrollment"
+        reason = "Collection failed; check device access, SSH settings, and reachability"
     return f"{outcome.target_ip}: {reason}"
 
 
@@ -313,11 +311,11 @@ class BasicApp:
         help_text = (
             "1. Paste device IPs or import CSV/TXT, then choose Select devices. Free Basic runs one device per audit.\n"
             "2. Choose IOS XE or IOS, a STIG family, and an approved site profile.\n"
-            "3. For Live SSH, verify each device fingerprint and enroll its key in known_hosts first.\n"
+            "3. For Live SSH, confirm the device address, port, and account before starting.\n"
             "4. Choose a matching blank CKL template if you want checklist output.\n"
             "5. Start the audit. The run card shows the encrypted file count and exact output folder.\n"
             "6. Open a protected report in Results, or explicitly export an unencrypted copy.\n\n"
-            "Unknown or changed SSH keys stop collection before commands run. Audit and summary files use .sapenc.\n"
+            "Basic currently does not enforce known_hosts host-key verification. Audit and summary files use .sapenc.\n"
             "Credentials and the audit-data passphrase are not saved by the app; SSH credentials remain in memory during a live run.\n"
             "Editable checks and profiles are beside the application in data. Review starter checks against the approved benchmark."
         )
@@ -451,7 +449,7 @@ class BasicApp:
 
     def update_mode_badge(self):
         live = self.mode.get() == "Live SSH"
-        label = ("LIVE SSH  ·  trusted host key required  ·  network device access" if live
+        label = ("LIVE SSH  ·  host-key verification disabled  ·  network device access" if live
                  else "DEMO MODE  ·  bundled IOS XE evidence  ·  no device connection")
         self.mode_badge.configure(text=label, text_color=self.colors["amber"] if live else self.colors["teal"])
 

@@ -58,7 +58,7 @@ def test_all_failed_ssh_devices_do_not_claim_reports_were_written(monkeypatch, t
     final = _last_message(app)
     assert "failed" in final.lower()
     assert "192.0.2.10" in final
-    assert "host key" in final.lower()
+    assert "ssh settings" in final.lower()
     assert "Completed. Files written" not in final
     assert not list(output.glob("*"))
 
@@ -228,7 +228,7 @@ def test_live_progress_never_displays_raw_ssh_exception():
     )
     rendered = basic_app._scan_event_text(event)
     assert "192.0.2.10" in rendered
-    assert "host key" in rendered.lower()
+    assert "ssh settings" in rendered.lower()
     assert "SECRET123" not in rendered
 
 
