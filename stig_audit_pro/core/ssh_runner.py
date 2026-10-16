@@ -63,6 +63,13 @@ class NetmikoSshRunner:
             "timeout": target.timeout,
             "banner_timeout": target.timeout,
             "auth_timeout": target.timeout,
+            # Temporary Basic-mode compatibility setting.  Host-key
+            # verification is disabled until the operator workflow is
+            # redesigned to make enrollment easier and auditable.
+            "ssh_strict": False,
+            "system_host_keys": False,
+            "use_keys": False,
+            "allow_agent": False,
         }
         if credentials.secret:
             connection_params["secret"] = credentials.secret

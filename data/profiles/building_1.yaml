@@ -4,18 +4,18 @@ unused_vlan: 997
 dhcp_snooping:
   enabled: true
   vlans:
-  - 11
-  - 12
-  - 13
+  - 110
+  - 120
+  - 130
 arp_inspection:
   enabled: true
   vlans:
-  - 11
-  - 12
-  - 13
+  - 110
+  - 120
+  - 130
 variables:
   site_label: Building 1
   required_user_vlans:
-  - 11
-  - 12
-  - 13
+  - 110
+  - 120
+  - 130

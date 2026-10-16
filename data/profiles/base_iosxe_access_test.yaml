@@ -1,4 +1,4 @@
-# Site-neutral test copy of data/profiles/base_iosxe_access.yaml.
+# Editable test copy of data/profiles/base_iosxe_access.yaml.
 # Use this file while developing checks so the production base profile is unchanged.
 profile_name: base_iosxe_access_test
 inherits: null

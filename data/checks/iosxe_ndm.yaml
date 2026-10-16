@@ -287,8 +287,8 @@ checks:
   conditions:
     all:
     - command: show running-config
-      pattern: '(?m)^[ \t]*service[ \t]+timestamps[ \t]+log[ \t]+datetime[ \t]+msec[ \t]+localtime[ \t]+show-timezone[ \t]*$'
-      description: service timestamps log datetime msec localtime show-timezone
+      pattern: '(?m)^[ \t]*service[ \t]+timestamps[ \t]+log[ \t]+datetime[ \t]+msec[ \t]+localtime[ \t]+show-timezone[ \t]+year[ \t]*$'
+      description: service timestamps log datetime msec localtime show-timezone year
   result:
     pass_status: NotAFinding
     fail_status: Open

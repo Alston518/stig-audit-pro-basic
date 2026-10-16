@@ -1,0 +1,52 @@
+STIG AUDIT BASIC - DOCUMENTATION INDEX
+Report reliability, interface, and security update - reviewed 15 October 2026
+
+START HERE
+README.md (repository root)
+  Product scope, security behavior, source setup, testing, and build steps.
+01_Basic_User_Guide.pdf / .docx
+  Start the app, configure a Basic audit, choose output, and review results.
+08_Report_Output_Troubleshooting.md
+  Locate protected reports and diagnose complete, partial, and failed runs.
+
+OPERATORS
+03_Basic_Licensing.md
+  Import a signed license and understand free mode, limits, and expiration.
+05_Check_By_Check_Setup_Worksheet.pdf / .docx
+  Map each check to its site policy input and editable YAML location.
+06_Overall_Summary_Reporting.txt
+  Filter and export current-run PDF, HTML, and CSV summaries.
+10_Report_UI_Security_Update_Release_Notes.txt
+  Summary of report reliability, security, and interface changes.
+11_Public_Release_Cleanup_Notes.txt
+  Public repository scope, removed internal material, and release guardrails.
+
+CYBER REVIEWERS
+02_Basic_Every_Check_Reference.pdf / .docx
+  Implemented checks, evidence inputs, and decision rules.
+04_Cyber_Department_Testing_Guide.pdf / .docx
+  Review sequence, test approach, acceptance evidence, and limitations.
+07_Basic_Encryption_SSH_and_Licensing.md
+  Encryption design, readable-export boundary, SSH host-key trust, and tests.
+09_Security_Update_Verification.txt
+  Evidence from the 15 October 2026 source, build, and packaged smoke checks.
+SECURITY.md (repository root)
+  Private vulnerability-reporting guidance and current security boundaries.
+
+REFERENCE DATA
+check_definitions.json and profile_values.json
+  Structured snapshots of packaged checks and site profile definitions.
+build-dependencies.txt
+  Dependencies recorded for the verified 9 October 2026 build.
+Third Party Notices/
+  License notices for bundled third-party dependencies.
+
+RELEASE NOTES
+The executable remains unsigned. Hashes can detect a changed package but do
+not establish publisher identity. No FIPS 140-3 validation is claimed. Basic
+live SSH host-key verification is temporarily disabled for compatibility and
+must be restored before production deployment.
+
+Owner signing tools, private keys, issued customer licenses, internal release
+records, and Pro documentation are intentionally excluded from this public
+Basic repository.

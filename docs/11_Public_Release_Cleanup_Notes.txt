@@ -1,0 +1,32 @@
+STIG AUDIT BASIC - PUBLIC RELEASE CLEANUP
+15 October 2026
+
+SCOPE
+This repository is the public source home for STIG Audit Basic. The current
+branch brings in the 9 October report reliability, encryption, SSH, and GUI
+work and adapts its paths for the dedicated repository layout.
+
+REMOVED FROM THE PUBLIC REPOSITORY
+- Pro roadmaps, architecture, enterprise readiness, and internal handoff files
+- Publisher license-issuance tools and owner operating procedures
+- Nonproduction test verification keys
+- Historical build logs and machine-specific tester records
+- Temporary editing files and device session targets
+- Duplicate Pro and transitional PyInstaller specifications
+
+PUBLIC RELEASE CONTROLS
+- Production public license-verification keys remain in the build.
+- Private signing keys and issued customer licenses remain outside the repo.
+- Editable profiles, structured snapshots, Word guides, and PDF guides use
+  generic names and documentation-only address ranges.
+- Automated hygiene tests reject the removed owner paths, test trust anchor,
+  private-key PEM markers, issuance commands, and known site identifiers.
+- CI runs the full test suite and builds the Basic PyInstaller specification.
+- SECURITY.md provides private-reporting guidance and states the current
+  encryption, SSH, code-signing, FIPS, and AI boundaries.
+- LICENSE.md states that the public source is not offered under an open-source
+  license. Final customer EULA and distribution terms still require counsel.
+
+VERIFICATION
+See 09_Security_Update_Verification.txt for the test, build, smoke, and hash
+evidence recorded from this dedicated Basic repository.

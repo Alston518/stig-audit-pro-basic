@@ -1,13 +1,11 @@
-# SITE-NEUTRAL EXAMPLE ONLY. Replace every site value before a live audit.
-# See Documentation/05_Check_By_Check_Setup_Worksheet.pdf for each field.
 profile_name: base_iosxe_access
 inherits: null
-unused_vlan: 4094
+unused_vlan: 997
 native_vlan: 20
 management_vlan: 10
 disabled_port_policy:
   require_shutdown: true
-  required_access_vlan: 4094
+  required_access_vlan: 997
 trunk_policy:
   vlan_1_must_be_pruned: true
   additional_pruned_vlans: []
@@ -22,38 +20,57 @@ arp_inspection:
   vlans:
   - 30
 root_guard:
+  # Enter Device ID hostnames from "show cdp neighbors detail". Short names and FQDNs both match.
+  # A matching core/distribution neighbor exempts only the local interface connected to that neighbor.
   upstream_switches:
-  - CORE-DIST-01.example.invalid
+  - CORE-DIST-01
 management_access:
+  # ACL applied inbound to every VTY section.
   acl_name: EXAMPLE-MGMT-ACL
+  # Approved source networks. Enter the subnet mask, not the ACL wildcard.
   networks:
   - network_address: 192.0.2.0
     subnet_mask: 255.255.255.0
 endpoint_authentication:
+  # Match the name after: aaa group server radius <group-name>
   radius_group: EXAMPLE-RADIUS
+  # List every required "server name" entry indented under that AAA group.
   radius_servers:
   - RADIUS-SERVER-1
   - RADIUS-SERVER-2
+  # Map each required RADIUS server name to the IPv4 address expected in
+  # its "radius server <name>" configuration section.
   radius_server_addresses:
     RADIUS-SERVER-1: 192.0.2.18
     RADIUS-SERVER-2: 192.0.2.19
 comments:
   default_open_prefix: Automated STIG validation found noncompliant configuration.
   default_pass_prefix: Automated STIG validation found required configuration present.
-  default_error_prefix: Automated STIG validation could not confidently evaluate this
-    requirement.
+  default_error_prefix: Automated STIG validation could not confidently evaluate this requirement.
 variables:
-  site_label: EXAMPLE VALUES - REPLACE BEFORE LIVE AUDIT
+  site_label: Test IOS-XE access switch profile
   required_user_vlans:
   - 30
+  # List the exact hostname or IP address that follows each required
+  # "logging host" command. At least two servers must be listed.
   logging_servers:
   - 192.0.2.5
   - 192.0.2.6
+  # List at least two exact hostnames or IP addresses that follow
+  # "ntp server" in the running configuration.
   ntp_servers:
   - 192.0.2.22
   - 192.0.2.23
-  supported_iosxe_versions: []
+  # List every IOS-XE release currently approved by the organization and
+  # confirmed to remain supported by Cisco. Use the exact "show version" value.
+  supported_iosxe_versions:
+  - 17.12.08
+  # Name referenced after "common-criteria-policy" on the one permitted
+  # local username command.
   local_password_policy: EXAMPLE-PASSWORD-POLICY
+  # AAA TACACS+ server-group name used before "local" in the default
+  # login authentication method list.
   tacacs_group: EXAMPLE-TACACS
+  # Organization-defined maximum number of concurrent management sessions.
+  # When session-limit is unavailable, the check counts configured VTY lines.
   max_concurrent_management_sessions: 16
-  supported_ios_versions: []

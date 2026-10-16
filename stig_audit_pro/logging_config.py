@@ -7,7 +7,7 @@ import re
 from pathlib import Path
 from typing import Any, Mapping
 
-from stig_audit_pro.licensing.paths import log_directory
+from platformdirs import user_data_path
 
 
 _SECRET_PATTERN = re.compile(
@@ -16,18 +16,47 @@ _SECRET_PATTERN = re.compile(
 
 
 class SafeContextFilter(logging.Filter):
-    """Add structured audit fields and redact common credential renderings."""
+    """Keep diagnostics while excluding exception-provided text from logs."""
 
     def filter(self, record: logging.LogRecord) -> bool:
-        try:
-            rendered = record.getMessage()
-        except Exception:
-            rendered = str(record.msg)
+        if record.name.split('.', 1)[0].lower() in {'paramiko', 'netmiko', 'scp'}:
+            # Transport libraries can log device banners and command output in
+            # unstructured messages. No vendor message goes to the Basic log.
+            return False
+        if record.exc_info is not None:
+            # Exception messages and traceback frames may contain device output,
+            # credentials, or paths. The logging call site and error class are
+            # enough to locate the failure without persisting that material.
+            error_class = record.exc_info[0]
+            error_name = getattr(error_class, "__name__", "Exception")
+            if not isinstance(error_name, str) or not re.fullmatch(
+                r"[A-Za-z_][A-Za-z0-9_]{0,79}", error_name
+            ):
+                error_name = "Exception"
+            module = record.module
+            if not isinstance(module, str) or not re.fullmatch(
+                r"[A-Za-z_][A-Za-z0-9_]{0,79}", module
+            ):
+                module = "unknown"
+            rendered = f"Exception captured: {error_name} at {module}:{record.lineno}"
+        else:
+            try:
+                rendered = record.getMessage()
+            except Exception:
+                rendered = str(record.msg)
         record.msg = _SECRET_PATTERN.sub(lambda match: f"{match.group(1)}=[REDACTED]", rendered)
         record.args = ()
+        # Formatter.format() appends these fields after filtering record.msg.
+        # Clear cached text too, in case another handler formatted first.
+        record.exc_info = None
+        record.exc_text = None
+        record.stack_info = None
         for name in ("run_id", "device_ip", "hostname", "audit_stage", "error_type"):
             if not hasattr(record, name):
                 setattr(record, name, "-")
+        for name in ("device_ip", "hostname"):
+            if getattr(record, name) != "-":
+                setattr(record, name, "[REDACTED]")
         return True
 
 
@@ -85,7 +114,9 @@ def configure_logging() -> Path | None:
     root_logger.addHandler(stream)
     root_logger.setLevel(logging.INFO)
     try:
-        directory = log_directory()
+        directory = user_data_path(
+            "STIG Audit Pro Basic", appauthor=False, roaming=False
+        ) / "logs"
         directory.mkdir(parents=True, exist_ok=True)
         path = directory / "stig-audit-pro.log"
         file_handler = logging.FileHandler(path, encoding="utf-8")

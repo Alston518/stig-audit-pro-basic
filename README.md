@@ -1,19 +1,92 @@
-# STIG Audit Pro Basic
+# STIG Audit Basic
 
-## Download the Windows app
+STIG Audit Basic is a Windows desktop application for read-only Cisco IOS and
+IOS XE STIG assessment. It collects approved `show` command output, evaluates
+the selected L2 and NDM checks, and creates TXT and CKL results. Free Basic
+assesses one explicitly selected device per run; signed offline licenses can
+enable larger batches and additional allowed features.
 
-Open the [latest Windows release](https://github.com/Alston518/stig-audit-pro-basic/releases/tag/basic-windows-2026-10-05) and download **STIG_Audit_Basic_IOS_IOSXE_2026-10-05_Public_Windows.zip** from its **Assets** section. Extract the entire ZIP to a writable Windows x64 folder and double-click `START BASIC AUDIT.cmd`. The EXE and its required files are included; Python is not needed.
+This is the dedicated public source repository for the Basic application. It
+does not launch the Pro interface and does not contain publisher signing tools,
+private signing keys, issued customer licenses, or internal release records.
 
-GitHub's **Code → Download ZIP** button downloads repository source, not the ready-to-run Windows app. Use the Release asset for installation.
+## Release status
 
-This release supports IOS and IOS XE L2/NDM audits, TXT and CKL output, and current-run combined PDF, HTML, and CSV summaries. Free Basic audits one selected device per run. A signed offline license can enable larger batches.
+The source contains the 9 October 2026 report, interface, encryption, and SSH
+update plus the 15 October public-repository cleanup. The older 5 October
+binary release predates these security changes. Build this source for testing
+until a new release asset is published from the reviewed commit.
 
-## Before a live audit
+## Current security behavior
 
-The public ZIP contains example-only site profiles. Enter your own approved VLANs, management networks, server names and addresses, and supported software versions in `Application/data/profiles/base_iosxe_access.yaml` or `base_ios_switch_access.yaml`. The [check-by-check worksheet](docs/basic/README.md) explains all 121 checks, the exact YAML field for each site value, checks that need no input, and manual reviews.
+- New reports and summary exports are stored as authenticated AES-256-GCM
+  `.sapenc` files. The audit-data passphrase unlocks the local report vault.
+- Reports are rendered in memory and encrypted before they are published to
+  the selected output folder. Creating a readable copy requires an explicit
+  export action in the Results tab.
+- Live SSH currently has host-key verification disabled for Basic compatibility.
+  Use network access controls and an approved pilot process while this setting
+  is in effect. This is a temporary exception and is not a secure SSH default.
+- SSH agent and identity-key authentication are disabled. Password and enable
+  secret fields are cleared when a live audit begins.
+- The app reports completed, partial, failed, and cancelled runs with the
+  actual protected-file count and exact output folder.
 
-The release page provides a SHA-256 file. After extraction, `VERIFY PACKAGE.ps1` checks the package files before you customize profiles. Choose the blank CKL template matching the platform and check family when exporting a checklist.
+See [the encryption and SSH guide](docs/07_Basic_Encryption_SSH_and_Licensing.md)
+for the security boundary, reviewer checks, and known limitations.
 
-## Repository source
+## Run from source
 
-The source in this repository now contains the October Basic IOS/IOS XE checks, offline licensing, and combined reporting code. `BUILD EXE.cmd` and `STIG Audit Basic.spec` build the Basic app on Windows with Python 3.12. The GitHub Release ZIP remains the easiest way to run it. The owner signing application, private keys, and issued customer licenses are not included in that public ZIP.
+Requirements: Windows, Python 3.12, and the packages in `requirements.txt`.
+
+```powershell
+py -3.12 -m pip install -r requirements.txt
+py -3.12 app.py
+```
+
+The first launch asks for a nonempty audit-data passphrase. Later launches
+require the same passphrase. There is no recovery key, so preserve both the
+passphrase and `%LOCALAPPDATA%\STIG Audit Pro Basic\audit-vault.json`.
+
+## Test and build
+
+```powershell
+py -3.12 -m pytest -q
+py -3.12 -m PyInstaller --noconfirm "STIG Audit Basic.spec"
+```
+
+`BUILD EXE.cmd` runs the Basic build command. Distribute the entire
+`dist\STIG Audit Basic` folder, including `_internal`. The executable is
+currently unsigned; package hashes detect changes but do not establish the
+publisher's identity.
+
+The repository includes sanitized demonstration data. A live end-to-end test
+still requires an authorized Cisco device and an independently verified SSH
+host-key fingerprint.
+
+## Documentation
+
+- [Documentation index](docs/00_Documentation_Index.txt)
+- [Basic licensing](docs/03_Basic_Licensing.md)
+- [Encryption, SSH, and licensing](docs/07_Basic_Encryption_SSH_and_Licensing.md)
+- [Report output troubleshooting](docs/08_Report_Output_Troubleshooting.md)
+- [Security update verification](docs/09_Security_Update_Verification.txt)
+- [Release notes](docs/10_Report_UI_Security_Update_Release_Notes.txt)
+- [Public release cleanup](docs/11_Public_Release_Cleanup_Notes.txt)
+
+## Licensing
+
+The application verifies signed licenses using production public keys bundled
+with the executable. Publisher signing procedures and private keys are kept
+outside this public repository. Existing compatible signed Basic licenses do
+not need to be reissued for the report-encryption or SSH changes.
+
+This repository does not grant an open-source license. See
+[LICENSE.md](LICENSE.md) and the third-party notices under
+`docs/Third Party Notices`. Have the final customer EULA and distribution
+terms reviewed by qualified counsel before a production public release.
+
+## Security reports
+
+See [SECURITY.md](SECURITY.md). Do not place device configurations,
+credentials, licenses, or customer data in a public issue.
