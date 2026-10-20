@@ -21,6 +21,11 @@ from stig_audit_pro.storage.profile_builder import (
     safe_profile_filename,
     save_profile,
 )
+from stig_audit_pro.storage.inventory_importer import (
+    InventoryImportError,
+    build_inventory_plan,
+    inventory_template_csv,
+)
 
 
 def _split_values(value: str) -> list[str]:
@@ -318,6 +323,8 @@ class SiteSetupPanel:
         self.group_devices.pack(fill="both", expand=True, padx=8, pady=(0, 3))
         group_actions = ctk.CTkFrame(group_scroll, fg_color="transparent")
         group_actions.pack(fill="x", padx=8, pady=8)
+        ctk.CTkButton(group_actions, text="Download inventory template", command=self.download_inventory_template).pack(side="left", padx=4)
+        ctk.CTkButton(group_actions, text="Import master inventory", command=self.import_master_inventory).pack(side="left", padx=4)
         ctk.CTkButton(group_actions, text="Import CSV/TXT", command=self.import_group_devices).pack(side="left", padx=4)
         ctk.CTkButton(group_actions, text="Save device group", command=self.save_current_group).pack(side="left", padx=4)
 
@@ -510,6 +517,64 @@ class SiteSetupPanel:
             self.messagebox.showinfo("Device list imported", f"Loaded {len(addresses)} device(s).")
         except (OSError, ValueError) as exc:
             self.messagebox.showerror("Import failed", str(exc))
+
+    def download_inventory_template(self) -> None:
+        """Save a starter master-inventory CSV for a new operator."""
+
+        selected = self.filedialog.asksaveasfilename(
+            title="Download master inventory template",
+            defaultextension=".csv",
+            initialfile="master_inventory_template.csv",
+            filetypes=[("CSV inventory", "*.csv"), ("All files", "*.*")],
+        )
+        if not selected:
+            return
+        try:
+            path = Path(selected)
+            path.write_text(inventory_template_csv(), encoding="utf-8", newline="")
+            self.messagebox.showinfo("Template saved", f"Saved inventory template:\n{path}")
+        except OSError as exc:
+            self.messagebox.showerror("Template not saved", str(exc))
+
+    def import_master_inventory(self) -> None:
+        """Create or replace multiple device groups from one validated CSV."""
+
+        selected = self.filedialog.askopenfilename(
+            title="Import master inventory",
+            filetypes=[("CSV inventory", "*.csv"), ("All files", "*.*")],
+        )
+        if not selected:
+            return
+        try:
+            source = Path(selected).read_text(encoding="utf-8-sig")
+            plan = build_inventory_plan(source, self._names())
+            summary = "\n".join(
+                f"• {group.group_name}: {len(group.targets)} device(s) → {group.profile_name}"
+                for group in plan.groups
+            )
+            if not self.messagebox.askyesno(
+                "Review master inventory",
+                f"Validated {plan.source_rows} row(s) into {len(plan.groups)} building group(s):\n\n{summary}\n\nSave these device groups?",
+            ):
+                return
+            existing = [group.group_name for group in plan.groups if self.groups.path_for(group.group_name).exists()]
+            if existing and not self.messagebox.askyesno(
+                "Replace existing groups?",
+                "These saved groups will be replaced:\n\n" + "\n".join(existing),
+            ):
+                return
+            for group in plan.groups:
+                self.groups.save_group(group)
+            self._refresh_group_choices()
+            self.group_choice.set(plan.groups[0].group_name)
+            self._select_group(plan.groups[0].group_name)
+            self.messagebox.showinfo(
+                "Master inventory imported",
+                f"Saved {len(plan.groups)} building group(s) containing {plan.source_rows} device row(s).",
+            )
+            self.on_group_saved(plan.groups[0].group_name)
+        except (OSError, UnicodeError, InventoryImportError, ValueError) as exc:
+            self.messagebox.showerror("Master inventory not imported", str(exc))
 
 
 __all__ = ["SiteSetupPanel", "build_profile_overrides", "parse_group_addresses"]

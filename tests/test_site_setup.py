@@ -133,3 +133,47 @@ def test_site_setup_panel_saves_profile_and_group(tmp_path):
         assert (groups / "Building_Smoke.yaml").is_file()
     finally:
         root.destroy()
+
+
+def test_site_setup_panel_downloads_template_and_imports_master_inventory(tmp_path):
+    import customtkinter as ctk
+    from stig_audit_pro.gui.site_setup import SiteSetupPanel
+
+    profiles = tmp_path / "profiles"
+    groups = tmp_path / "groups"
+    profiles.mkdir()
+    groups.mkdir()
+    shutil.copy2(Path("data/profiles/base_iosxe_access.yaml"), profiles / "base_iosxe_access.yaml")
+    try:
+        root = ctk.CTk()
+    except tkinter.TclError as exc:
+        pytest.skip(f"Tk display unavailable: {exc}")
+    root.withdraw()
+    try:
+        panel = SiteSetupPanel(root, profiles_dir=profiles, groups_dir=groups)
+        panel.messagebox = SimpleNamespace(
+            askyesno=lambda *_args, **_kwargs: True,
+            showinfo=lambda *_args, **_kwargs: None,
+            showerror=lambda *args, **_kwargs: (_ for _ in ()).throw(RuntimeError(args)),
+        )
+        panel.profile_name.insert(0, "Building 1")
+        panel.save_current_profile()
+
+        template_path = tmp_path / "master_inventory_template.csv"
+        source_path = tmp_path / "inventory.csv"
+        source_path.write_text(
+            "building,profile,platform,hostname,ip\nBuilding 1,Building 1,IOS XE,SW-01,192.0.2.10\n",
+            encoding="utf-8",
+        )
+        panel.filedialog = SimpleNamespace(
+            asksaveasfilename=lambda **_kwargs: str(template_path),
+            askopenfilename=lambda **_kwargs: str(source_path),
+        )
+
+        panel.download_inventory_template()
+        panel.import_master_inventory()
+
+        assert template_path.is_file()
+        assert (groups / "Building_1.yaml").is_file()
+    finally:
+        root.destroy()
