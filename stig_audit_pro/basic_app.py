@@ -1,7 +1,6 @@
 """Operator-first, read-only STIG audit workflow for the Basic edition."""
 from __future__ import annotations
 import csv, hashlib, ipaddress, json, logging, os, queue, re, threading, uuid, shutil, sys
-from collections.abc import Iterable
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
@@ -187,25 +186,6 @@ def report_stem(asset, scan_ip: str, families: list[str], when: datetime | None 
     return f"{short}_{platform}_{label}_{date_text}_{target_id}"
 
 
-def latest_protected_report(
-    report_paths: Iterable[str | Path], output_dir: str | Path | None,
-) -> Path | None:
-    """Return the newest protected report from the current output location."""
-
-    candidates: set[Path] = set()
-    for raw_path in report_paths:
-        path = Path(raw_path)
-        if path.is_file() and path.suffix.casefold() == ".sapenc":
-            candidates.add(path)
-    if output_dir:
-        folder = Path(output_dir)
-        if folder.is_dir():
-            candidates.update(path for path in folder.glob("*.sapenc") if path.is_file())
-    if not candidates:
-        return None
-    return max(candidates, key=lambda path: path.stat().st_mtime_ns)
-
-
 def _failed_outcome_text(outcome) -> str:
     """Give operators actionable failures without echoing raw SSH exceptions."""
     message = (outcome.error_message or "").casefold()
@@ -330,7 +310,7 @@ class BasicApp:
                      text_color=colors["muted"]).pack(anchor="w", padx=16)
         protected_row = ctk.CTkFrame(result, fg_color=colors["card"], corner_radius=10)
         protected_row.pack(fill="x", padx=12, pady=(12, 0))
-        ctk.CTkButton(protected_row, text="Open latest protected report", command=self.open_protected_report,
+        ctk.CTkButton(protected_row, text="Open protected report folder", command=self.open_protected_report,
                       fg_color=colors["blue"]).pack(side="left", padx=8, pady=8)
         ctk.CTkButton(protected_row, text="Export readable copy", command=self.export_protected_report,
                       fg_color=colors["raised"], hover_color=colors["border"]).pack(side="left", padx=4, pady=8)
@@ -343,7 +323,7 @@ class BasicApp:
             "3. For Live SSH, confirm the device address, port, and account before starting.\n"
             "4. Choose a matching blank CKL template if you want checklist output.\n"
             "5. Start the audit. The run card shows the encrypted file count and exact output folder.\n"
-            "6. Open a protected report in Results, or explicitly export an unencrypted copy.\n\n"
+            "6. Open the protected report folder in Results, or explicitly export an unencrypted copy.\n\n"
             "Basic currently does not enforce known_hosts host-key verification. Audit and summary files use .sapenc.\n"
             "Credentials and the audit-data passphrase are not saved by the app; SSH credentials remain in memory during a live run.\n"
             "Editable checks and profiles are beside the application in data. Review starter checks against the approved benchmark."
@@ -648,19 +628,7 @@ class BasicApp:
         self.refresh_license_status()
         self.messagebox.showinfo('License imported','The signed license is installed. Use Select devices to choose your audit batch.')
     def open_protected_report(self):
-        output_dir = self.last_output_dir
-        if output_dir is None and hasattr(self, "output_dir"):
-            raw_output = self.output_dir.get().strip()
-            output_dir = Path(raw_output) if raw_output else None
-        selected = latest_protected_report(self.last_report_paths, output_dir)
-        if selected is None:
-            location = str(output_dir) if output_dir else "the configured output folder"
-            self.messagebox.showinfo(
-                "No protected report",
-                f"No .sapenc reports were found in {location}.",
-            )
-            return
-        self._display_protected_report(selected)
+        self.open_output_folder()
 
     def _display_protected_report(self, selected):
         try:

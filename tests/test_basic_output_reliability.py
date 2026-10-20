@@ -117,48 +117,30 @@ def test_report_stem_is_windows_safe_for_ipv6_and_hostnames():
     assert all(not any(char in name for char in '<>:"/\\|?*') for name in names)
 
 
-def test_latest_protected_report_uses_current_output_folder(tmp_path):
+def test_open_protected_report_opens_current_output_folder_without_browsing(tmp_path, monkeypatch):
     output = tmp_path / "reports"
     output.mkdir()
-    older = output / "older.txt.sapenc"
-    newer = output / "newer.txt.sapenc"
-    older.write_bytes(b"older")
-    newer.write_bytes(b"newer")
-    older.touch()
-    newer.touch()
-    import os
-    os.utime(older, (100, 100))
-    os.utime(newer, (200, 200))
-
-    assert basic_app.latest_protected_report([], output) == newer
-
-
-def test_latest_protected_report_returns_none_when_folder_is_empty(tmp_path):
-    output = tmp_path / "reports"
-    output.mkdir()
-
-    assert basic_app.latest_protected_report([], output) is None
-
-
-def test_open_protected_report_uses_latest_output_without_browsing(tmp_path):
-    output = tmp_path / "reports"
-    output.mkdir()
-    report = output / "latest.txt.sapenc"
-    report.write_bytes(b"protected")
     app = basic_app.BasicApp.__new__(basic_app.BasicApp)
-    app.last_report_paths = []
     app.last_output_dir = output
-    app.output_dir = SimpleNamespace(get=lambda: str(output))
     app.messagebox = SimpleNamespace(showinfo=lambda *_args, **_kwargs: None)
-    app.filedialog = SimpleNamespace(
-        askopenfilename=lambda **_kwargs: (_ for _ in ()).throw(AssertionError("browse was called")),
-    )
     opened = []
-    app._display_protected_report = lambda path: opened.append(Path(path))
+    monkeypatch.setattr(basic_app.os, "startfile", lambda path: opened.append(Path(path)))
 
     app.open_protected_report()
 
-    assert opened == [report]
+    assert opened == [output]
+
+
+def test_open_protected_report_reports_missing_output_folder(tmp_path):
+    app = basic_app.BasicApp.__new__(basic_app.BasicApp)
+    app.last_output_dir = tmp_path / "missing"
+    messages = []
+    app.messagebox = SimpleNamespace(showinfo=lambda *args, **kwargs: messages.append(args))
+
+    app.open_protected_report()
+
+    assert messages
+    assert messages[0][0] == "No output folder"
 
 
 def test_poll_rechecks_queue_after_worker_finishes():
