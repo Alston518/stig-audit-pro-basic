@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 import re
+import ipaddress
+import os
+import uuid
 from pathlib import Path
+from collections.abc import Iterable
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -22,6 +26,34 @@ class DeviceTargetRecord(BaseModel):
         if not value.strip():
             raise ValueError("ip must not be empty")
         return value.strip()
+
+
+class DeviceGroupValidationError(ValueError):
+    """Raised when a saved device group is unsafe or incomplete."""
+
+
+def normalize_device_addresses(values: Iterable[str]) -> list[str]:
+    """Normalize device addresses and reject invalid or duplicate entries."""
+
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for raw in values:
+        value = str(raw).strip()
+        if not value:
+            continue
+        try:
+            ipaddress.ip_address(value)
+        except ValueError:
+            if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,252}", value):
+                raise DeviceGroupValidationError(f"invalid device address: {value!r}")
+        key = value.casefold()
+        if key in seen:
+            raise DeviceGroupValidationError(f"duplicate device address: {value!r}")
+        seen.add(key)
+        normalized.append(value)
+    if not normalized:
+        raise DeviceGroupValidationError("a device group must contain at least one device")
+    return normalized
 
 
 class DeviceGroup(BaseModel):
@@ -73,6 +105,9 @@ class DeviceGroupStore:
         return DeviceGroup.model_validate(data)
 
     def save_group(self, group: DeviceGroup) -> Path:
+        addresses = normalize_device_addresses(target.ip for target in group.targets)
+        if len(addresses) != len(group.targets):
+            raise DeviceGroupValidationError("device group contains an invalid target list")
         path = self.root / safe_group_filename(group.group_name)
         data = {
             "group_name": group.group_name,
@@ -86,8 +121,17 @@ class DeviceGroupStore:
                 for target in group.targets
             ],
         }
-        with path.open("w", encoding="utf-8") as handle:
-            yaml.safe_dump(data, handle, sort_keys=False)
+        temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
+        try:
+            with temporary.open("x", encoding="utf-8", newline="\n") as handle:
+                yaml.safe_dump(data, handle, sort_keys=False)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temporary, path)
+        except (OSError, yaml.YAMLError) as exc:
+            raise DeviceGroupValidationError(f"Could not save device group {path}: {exc}") from exc
+        finally:
+            temporary.unlink(missing_ok=True)
         return path
 
     def _path_for(self, group_name: str) -> Path:
@@ -103,3 +147,8 @@ class DeviceGroupStore:
             except Exception:
                 continue
         return exact
+
+    def path_for(self, group_name: str) -> Path:
+        """Return the on-disk path used for a named group."""
+
+        return self._path_for(group_name)

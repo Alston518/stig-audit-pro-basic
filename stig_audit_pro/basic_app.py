@@ -10,7 +10,8 @@ from stig_audit_pro.core.yaml_loader import ConfigValidationError, load_check_li
 from stig_audit_pro.reports.audit_report import build_text_report
 from stig_audit_pro.reports.basic_summary import Filter, STATUSES, CATS, cat, summarize, render_csv, render_html, render_pdf
 from stig_audit_pro.stig.ckl_writer import render_completed_ckl
-from stig_audit_pro.storage.device_groups import DeviceTargetRecord
+from stig_audit_pro.storage.device_groups import DeviceGroup, DeviceGroupStore, DeviceTargetRecord
+from stig_audit_pro.storage.profile_builder import ProfileBuildError, load_profile_data
 from stig_audit_pro.licensing import LicenseImportError, LicensePolicyError
 from stig_audit_pro.licensing.basic_policy import BasicLicensePolicy, normalize_basic_targets
 from stig_audit_pro.infrastructure.security.at_rest import AtRestVault, VaultUnlockError
@@ -47,6 +48,12 @@ def library_names(platform: str, family_choice: str) -> list[str]:
 
 def default_profile_name(platform: str) -> str:
     return DEFAULT_PROFILES[platform]
+
+
+def selected_group_values(group: DeviceGroup) -> tuple[list[str], str | None]:
+    """Return checked addresses and the saved profile for an audit group."""
+
+    return [target.ip for target in group.targets if target.checked], group.profile_name
 
 
 def can_use_sample_outputs(platform: str) -> bool:
@@ -239,6 +246,7 @@ class BasicApp:
                 destination = self.data_root / item.relative_to(bundled)
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 if not destination.exists(): shutil.copy2(item, destination)
+        self.device_group_store = DeviceGroupStore(self.data_root / "device_groups")
         self._build()
         self.refresh_license_status()
         self._license_timer = self.root.after(30000, self.check_license_timer)
@@ -289,6 +297,7 @@ class BasicApp:
         summary = tabs.add("Summary")
         license_tab = tabs.add("License")
         help_ = tabs.add("Help")
+        setup_tab = tabs.add("Profiles & Sites")
         self._build_summary(summary)
 
         from stig_audit_pro.gui.basic_license_ui import BasicLicensePanel
@@ -336,6 +345,23 @@ class BasicApp:
         self.selection_label = ctk.CTkLabel(selection_row, text="", justify="left", anchor="w",
                                             wraplength=580, text_color=colors["muted"])
         self.selection_label.pack(side="left", fill="x", expand=True, padx=10)
+
+        group_row = ctk.CTkFrame(targets_card, fg_color=colors["raised"], corner_radius=8)
+        group_row.pack(fill="x", padx=14, pady=(0, 10))
+        ctk.CTkLabel(group_row, text="Saved building", width=120, anchor="w",
+                     text_color=colors["muted"]).pack(side="left", padx=8, pady=8)
+        self.saved_group = ctk.CTkOptionMenu(
+            group_row,
+            values=["Manual device list"] + self._group_names(),
+            command=self.apply_saved_group,
+        )
+        self.saved_group.pack(side="left", fill="x", expand=True, padx=4, pady=8)
+        self.saved_group.set("Manual device list")
+        self.saved_group_summary = ctk.CTkLabel(
+            group_row, text="Choose a saved building to load its devices and profile.",
+            anchor="w", text_color=colors["muted"], wraplength=430,
+        )
+        self.saved_group_summary.pack(side="left", fill="x", expand=True, padx=8)
 
         setup_card = self._audit_card(audit, "02  AUDIT SETUP", "Choose the platform, STIG family, mode, and site profile.")
         row = ctk.CTkFrame(setup_card, fg_color="transparent")
@@ -437,6 +463,16 @@ class BasicApp:
                                                  fg_color=colors["card"])
         self.view_latest_button.pack(side="left", padx=4)
 
+        from stig_audit_pro.gui.site_setup import SiteSetupPanel
+
+        self.site_setup_panel = SiteSetupPanel(
+            setup_tab,
+            profiles_dir=self.data_root / "profiles",
+            groups_dir=self.data_root / "device_groups",
+            on_profiles_changed=self.refresh_profile_controls,
+            on_group_saved=self.refresh_group_controls,
+        )
+
     def _audit_card(self, parent, title: str, subtitle: str):
         ctk = self.ctk
         card = ctk.CTkFrame(parent, fg_color=self.colors["card"], corner_radius=12,
@@ -516,6 +552,45 @@ class BasicApp:
         self.preview_summary();self.messagebox.showinfo('Protected summary saved','Encrypted files created:\n'+'\n'.join(str(p) for p in paths));return paths
 
     def _profiles(self): return [p.stem for p in sorted((self.data_root/"profiles").glob("*.yaml"))] or ["base_iosxe_access"]
+    def _group_names(self):
+        return self.device_group_store.list_groups()
+
+    def refresh_profile_controls(self):
+        values = self._profiles()
+        current = self.profile.get()
+        self.profile.configure(values=values)
+        if current not in values:
+            self.profile.set(default_profile_name(self.platform.get()))
+        self.update_paths()
+
+    def refresh_group_controls(self, selected: str | None = None):
+        values = ["Manual device list"] + self._group_names()
+        self.saved_group.configure(values=values)
+        if selected and selected in values:
+            self.saved_group.set(selected)
+
+    def apply_saved_group(self, name: str):
+        if name == "Manual device list":
+            self.saved_group_summary.configure(text="Manual device list selected. Enter devices above.")
+            return
+        try:
+            group = self.device_group_store.load_group(name)
+            addresses, profile_name = selected_group_values(group)
+            if not addresses:
+                raise ValueError("The saved group has no checked devices")
+            self.devices.delete("1.0", "end")
+            self.devices.insert("1.0", "\n".join(addresses))
+            self.selected_addresses = list(addresses)
+            if profile_name and profile_name in self._profiles():
+                self.profile.set(profile_name)
+            self.sync_selected_devices()
+            self.update_paths()
+            self.saved_group_summary.configure(
+                text=f"{len(addresses)} device(s) · profile {profile_name or '[none]'}"
+            )
+        except (OSError, ValueError) as exc:
+            self.saved_group_summary.configure(text="Could not load saved building")
+            self.messagebox.showerror("Saved building unavailable", str(exc))
     def sync_selected_devices(self):
         addresses,_=parse_device_text(self.devices.get('1.0','end'))
         addresses=list(normalize_basic_targets(addresses))
