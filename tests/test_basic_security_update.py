@@ -26,7 +26,7 @@ from stig_audit_pro.storage.device_groups import DeviceTargetRecord
 
 
 @pytest.mark.parametrize("runner", [NetmikoRunner(), NetmikoSshRunner()])
-def test_basic_ssh_host_key_verification_is_temporarily_disabled(monkeypatch, runner):
+def test_basic_ssh_host_key_verification_is_strict(monkeypatch, runner):
     parameters = {}
 
     def reject_key(**kwargs):
@@ -39,8 +39,10 @@ def test_basic_ssh_host_key_verification_is_temporarily_disabled(monkeypatch, ru
         DeviceCredentials("operator", "example"),
         ["show version"],
     )
-    assert parameters["ssh_strict"] is False
+    assert parameters["ssh_strict"] is True
     assert parameters["system_host_keys"] is False
+    assert parameters["alt_host_keys"] is True
+    assert Path(parameters["alt_key_file"]).is_file()
     assert parameters["use_keys"] is False
     assert parameters["allow_agent"] is False
     assert result.status == "skipped"
