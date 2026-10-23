@@ -5,6 +5,7 @@ from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
 from stig_audit_pro.application.audit_service import AuditService
+from stig_audit_pro.build_info import load_build_metadata
 from stig_audit_pro.core.ssh_runner import DeviceCredentials
 from stig_audit_pro.core.yaml_loader import ConfigValidationError, load_check_library, load_profile
 from stig_audit_pro.reports.audit_report import build_text_report
@@ -227,6 +228,7 @@ class BasicApp:
         self.last_report_paths, self.last_output_dir = [], None
         self.license_policy = BasicLicensePolicy()
         self.artifacts = ProtectedArtifactStore(vault)
+        self.build_metadata = load_build_metadata()
         self.selected_addresses = ['192.0.2.10']
         self.selection_dialog = None
         self.project_root = Path(user_documents_dir()) / "STIG Audit Pro Basic"
@@ -277,6 +279,15 @@ class BasicApp:
                      text_color=colors["text"], font=ctk.CTkFont(size=25, weight="bold")).pack(anchor="w")
         ctk.CTkLabel(title, text="Read-only collection  •  protected reports  •  operator-controlled export",
                      text_color=colors["muted"]).pack(anchor="w")
+        ctk.CTkLabel(
+            title,
+            text=(
+                f"Build updated {self.build_metadata['date']}  •  "
+                f"v{self.build_metadata['version']}  •  {self.build_metadata['id']}"
+            ),
+            text_color=colors["muted"],
+            font=ctk.CTkFont(size=11),
+        ).pack(anchor="w", pady=(3, 0))
         ctk.CTkLabel(header, text="READ ONLY  ·  ENCRYPTED OUTPUT", text_color=colors["teal"],
                      fg_color=colors["card"], corner_radius=10, padx=14, pady=9,
                      font=ctk.CTkFont(size=12, weight="bold")).pack(side="right", anchor="n", pady=6)
