@@ -350,3 +350,27 @@ def test_summary_export_reports_partial_protected_files(monkeypatch, tmp_path):
     assert "1 encrypted file" in errors[0][1]
     assert str(paths[0]) in errors[0][1]
     assert "PRIVATE" not in errors[0][1]
+
+def test_export_readable_copy_defaults_to_protected_output_folder(monkeypatch, tmp_path):
+    from stig_audit_pro import basic_app
+
+    app = basic_app.BasicApp.__new__(basic_app.BasicApp)
+    protected = tmp_path / "reports" / "finding.txt.sapenc"
+    protected.parent.mkdir()
+    protected.write_bytes(b"encrypted")
+    app.last_output_dir = protected.parent
+    calls = {}
+    app.filedialog = SimpleNamespace(
+        askopenfilename=lambda **_kwargs: str(protected),
+        asksaveasfilename=lambda **kwargs: calls.update(kwargs) or str(tmp_path / "exported.txt"),
+    )
+    app.messagebox = SimpleNamespace(
+        askyesno=lambda *_args: True,
+        showinfo=lambda *_args: None,
+        showerror=lambda *_args: None,
+    )
+    app.artifacts = SimpleNamespace(export=lambda *_args: None)
+
+    app.export_protected_report()
+
+    assert calls["initialdir"] == str(protected.parent)

@@ -689,7 +689,18 @@ class BasicApp:
         selected=self.filedialog.askopenfilename(title='Select protected Basic report',filetypes=[('Protected Basic report','*.sapenc')])
         if not selected:return
         original_name=Path(selected).stem
-        destination=self.filedialog.asksaveasfilename(title='Export readable copy',initialfile=original_name,defaultextension=Path(original_name).suffix)
+        default_folder = self.last_output_dir
+        if default_folder is None and hasattr(self, 'output_dir'):
+            raw_folder = self.output_dir.get().strip()
+            default_folder = Path(raw_folder).expanduser() if raw_folder else None
+        save_options = {
+            'title': 'Export readable copy',
+            'initialfile': original_name,
+            'defaultextension': Path(original_name).suffix,
+        }
+        if default_folder is not None:
+            save_options['initialdir'] = str(default_folder)
+        destination=self.filedialog.asksaveasfilename(**save_options)
         if not destination:return
         if not self.messagebox.askyesno('Export readable report','This creates an unencrypted file that other applications can read. Continue?'):return
         try:self.artifacts.export(selected,destination)
