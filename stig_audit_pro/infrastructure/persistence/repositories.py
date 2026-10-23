@@ -93,8 +93,18 @@ def _filtered(record_type: type, payload: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _canonical_sha256(value: Any) -> str:
+    def canonical(item: Any) -> Any:
+        if isinstance(item, datetime):
+            normalized = item.replace(tzinfo=timezone.utc) if item.tzinfo is None else item.astimezone(timezone.utc)
+            return normalized.isoformat()
+        if isinstance(item, Mapping):
+            return {str(key): canonical(value) for key, value in item.items()}
+        if isinstance(item, (list, tuple, set)):
+            return [canonical(value) for value in item]
+        return _plain(item)
+
     encoded = json.dumps(
-        _plain(value), sort_keys=True, separators=(",", ":"), default=str
+        canonical(value), sort_keys=True, separators=(",", ":"), default=str
     ).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
 
@@ -150,6 +160,20 @@ class ActivityLogRepository:
         if not record.action or not record.object_type:
             raise ValueError("Activity action and object type are required")
         with self.database.session() as session:
+            previous = session.scalars(
+                select(ActivityLog).order_by(ActivityLog.id.desc()).limit(1)
+            ).first()
+            previous_hash = previous.event_hash if previous and previous.event_hash else None
+            record.previous_hash = previous_hash
+            record.event_hash = _canonical_sha256({
+                "previous_hash": previous_hash,
+                "timestamp": record.timestamp,
+                "action": record.action,
+                "object_type": record.object_type,
+                "object_id": record.object_id,
+                "details": record.details,
+                "local_username": record.local_username,
+            })
             session.add(record)
         return record
 
@@ -160,6 +184,27 @@ class ActivityLogRepository:
         ).limit(safe_limit)
         with self.database.session() as session:
             return list(session.scalars(statement))
+
+    def verify_chain(self) -> tuple[bool, str | None]:
+        statement = select(ActivityLog).order_by(ActivityLog.id.asc())
+        with self.database.session() as session:
+            previous_hash: str | None = None
+            for record in session.scalars(statement):
+                if record.previous_hash != previous_hash:
+                    return False, f"event {record.id} has an unexpected previous hash"
+                expected = _canonical_sha256({
+                    "previous_hash": record.previous_hash,
+                    "timestamp": record.timestamp,
+                    "action": record.action,
+                    "object_type": record.object_type,
+                    "object_id": record.object_id,
+                    "details": record.details,
+                    "local_username": record.local_username,
+                })
+                if record.event_hash != expected:
+                    return False, f"event {record.id} hash mismatch"
+                previous_hash = record.event_hash
+        return True, None
 
 
 def _safe_username() -> str | None:
@@ -345,6 +390,14 @@ class AuditRunRepository:
         payload.setdefault("evaluated_at", payload.pop("timestamp", None) or utc_now())
         payload["evaluated_at"] = _datetime(payload["evaluated_at"], utc_now())
         payload.setdefault("evaluation_reason", payload.get("error_message"))
+        if not payload.get("automated_status"):
+            payload["automated_status"] = payload.get("status")
+        if payload.get("automated_finding_details") is None:
+            payload["automated_finding_details"] = payload.get("finding_details")
+        if payload.get("automated_comments") is None:
+            payload["automated_comments"] = payload.get("comments")
+        if payload.get("automated_evaluation_reason") is None:
+            payload["automated_evaluation_reason"] = payload.get("evaluation_reason")
         if "profile_values" not in payload:
             payload["profile_values"] = payload.pop("profile_values_used", {})
         record = CheckResult(**_filtered(CheckResult, payload))
@@ -411,6 +464,7 @@ class AuditRunRepository:
     def update_result_decision(
         self, run_id: str, target_ip: str, vuln_id: str, *,
         status: str, finding_details: str = "", comments: str = "",
+        justification: str = "",
     ) -> CheckResult:
         allowed = {"Open", "NotAFinding", "Not_Applicable", "Not_Reviewed"}
         if status not in allowed:
@@ -425,7 +479,20 @@ class AuditRunRepository:
             if len(records) != 1:
                 raise ValueError("A reviewer decision requires exactly one matching historical result")
             record = records[0]
+            if not (justification or comments or finding_details).strip():
+                raise ValueError("A reviewer decision requires a justification")
+            if record.automated_status is None:
+                record.automated_status = record.status
+            if record.automated_finding_details is None:
+                record.automated_finding_details = record.finding_details
+            if record.automated_comments is None:
+                record.automated_comments = record.comments
+            if record.automated_evaluation_reason is None:
+                record.automated_evaluation_reason = record.evaluation_reason
             record.status = status
+            record.review_status = status
+            record.review_justification = justification or comments or finding_details
+            record.reviewed_at = utc_now()
             record.finding_details = finding_details
             record.comments = comments
             record.evaluation_reason = "Manual reviewer decision"

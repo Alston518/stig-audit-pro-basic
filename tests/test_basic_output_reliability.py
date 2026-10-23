@@ -117,6 +117,32 @@ def test_report_stem_is_windows_safe_for_ipv6_and_hostnames():
     assert all(not any(char in name for char in '<>:"/\\|?*') for name in names)
 
 
+def test_open_protected_report_opens_current_output_folder_without_browsing(tmp_path, monkeypatch):
+    output = tmp_path / "reports"
+    output.mkdir()
+    app = basic_app.BasicApp.__new__(basic_app.BasicApp)
+    app.last_output_dir = output
+    app.messagebox = SimpleNamespace(showinfo=lambda *_args, **_kwargs: None)
+    opened = []
+    monkeypatch.setattr(basic_app.os, "startfile", lambda path: opened.append(Path(path)))
+
+    app.open_protected_report()
+
+    assert opened == [output]
+
+
+def test_open_protected_report_reports_missing_output_folder(tmp_path):
+    app = basic_app.BasicApp.__new__(basic_app.BasicApp)
+    app.last_output_dir = tmp_path / "missing"
+    messages = []
+    app.messagebox = SimpleNamespace(showinfo=lambda *args, **kwargs: messages.append(args))
+
+    app.open_protected_report()
+
+    assert messages
+    assert messages[0][0] == "No output folder"
+
+
 def test_poll_rechecks_queue_after_worker_finishes():
     event = SimpleNamespace(message="Audit failed: no reports created")
 
@@ -324,3 +350,27 @@ def test_summary_export_reports_partial_protected_files(monkeypatch, tmp_path):
     assert "1 encrypted file" in errors[0][1]
     assert str(paths[0]) in errors[0][1]
     assert "PRIVATE" not in errors[0][1]
+
+def test_export_readable_copy_defaults_to_protected_output_folder(monkeypatch, tmp_path):
+    from stig_audit_pro import basic_app
+
+    app = basic_app.BasicApp.__new__(basic_app.BasicApp)
+    protected = tmp_path / "reports" / "finding.txt.sapenc"
+    protected.parent.mkdir()
+    protected.write_bytes(b"encrypted")
+    app.last_output_dir = protected.parent
+    calls = {}
+    app.filedialog = SimpleNamespace(
+        askopenfilename=lambda **_kwargs: str(protected),
+        asksaveasfilename=lambda **kwargs: calls.update(kwargs) or str(tmp_path / "exported.txt"),
+    )
+    app.messagebox = SimpleNamespace(
+        askyesno=lambda *_args: True,
+        showinfo=lambda *_args: None,
+        showerror=lambda *_args: None,
+    )
+    app.artifacts = SimpleNamespace(export=lambda *_args: None)
+
+    app.export_protected_report()
+
+    assert calls["initialdir"] == str(protected.parent)

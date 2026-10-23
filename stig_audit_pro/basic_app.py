@@ -5,12 +5,14 @@ from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
 from stig_audit_pro.application.audit_service import AuditService
+from stig_audit_pro.build_info import load_build_metadata
 from stig_audit_pro.core.ssh_runner import DeviceCredentials
 from stig_audit_pro.core.yaml_loader import ConfigValidationError, load_check_library, load_profile
 from stig_audit_pro.reports.audit_report import build_text_report
 from stig_audit_pro.reports.basic_summary import Filter, STATUSES, CATS, cat, summarize, render_csv, render_html, render_pdf
 from stig_audit_pro.stig.ckl_writer import render_completed_ckl
-from stig_audit_pro.storage.device_groups import DeviceTargetRecord
+from stig_audit_pro.storage.device_groups import DeviceGroup, DeviceGroupStore, DeviceTargetRecord
+from stig_audit_pro.storage.profile_builder import ProfileBuildError, load_profile_data
 from stig_audit_pro.licensing import LicenseImportError, LicensePolicyError
 from stig_audit_pro.licensing.basic_policy import BasicLicensePolicy, normalize_basic_targets
 from stig_audit_pro.infrastructure.security.at_rest import AtRestVault, VaultUnlockError
@@ -47,6 +49,12 @@ def library_names(platform: str, family_choice: str) -> list[str]:
 
 def default_profile_name(platform: str) -> str:
     return DEFAULT_PROFILES[platform]
+
+
+def selected_group_values(group: DeviceGroup) -> tuple[list[str], str | None]:
+    """Return checked addresses and the saved profile for an audit group."""
+
+    return [target.ip for target in group.targets if target.checked], group.profile_name
 
 
 def can_use_sample_outputs(platform: str) -> bool:
@@ -220,6 +228,7 @@ class BasicApp:
         self.last_report_paths, self.last_output_dir = [], None
         self.license_policy = BasicLicensePolicy()
         self.artifacts = ProtectedArtifactStore(vault)
+        self.build_metadata = load_build_metadata()
         self.selected_addresses = ['192.0.2.10']
         self.selection_dialog = None
         self.project_root = Path(user_documents_dir()) / "STIG Audit Pro Basic"
@@ -239,6 +248,7 @@ class BasicApp:
                 destination = self.data_root / item.relative_to(bundled)
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 if not destination.exists(): shutil.copy2(item, destination)
+        self.device_group_store = DeviceGroupStore(self.data_root / "device_groups")
         self._build()
         self.refresh_license_status()
         self._license_timer = self.root.after(30000, self.check_license_timer)
@@ -269,6 +279,15 @@ class BasicApp:
                      text_color=colors["text"], font=ctk.CTkFont(size=25, weight="bold")).pack(anchor="w")
         ctk.CTkLabel(title, text="Read-only collection  •  protected reports  •  operator-controlled export",
                      text_color=colors["muted"]).pack(anchor="w")
+        ctk.CTkLabel(
+            title,
+            text=(
+                f"Build updated {self.build_metadata['date']}  •  "
+                f"v{self.build_metadata['version']}  •  {self.build_metadata['id']}"
+            ),
+            text_color=colors["muted"],
+            font=ctk.CTkFont(size=11),
+        ).pack(anchor="w", pady=(3, 0))
         ctk.CTkLabel(header, text="READ ONLY  ·  ENCRYPTED OUTPUT", text_color=colors["teal"],
                      fg_color=colors["card"], corner_radius=10, padx=14, pady=9,
                      font=ctk.CTkFont(size=12, weight="bold")).pack(side="right", anchor="n", pady=6)
@@ -289,6 +308,7 @@ class BasicApp:
         summary = tabs.add("Summary")
         license_tab = tabs.add("License")
         help_ = tabs.add("Help")
+        setup_tab = tabs.add("Profiles & Sites")
         self._build_summary(summary)
 
         from stig_audit_pro.gui.basic_license_ui import BasicLicensePanel
@@ -301,7 +321,7 @@ class BasicApp:
                      text_color=colors["muted"]).pack(anchor="w", padx=16)
         protected_row = ctk.CTkFrame(result, fg_color=colors["card"], corner_radius=10)
         protected_row.pack(fill="x", padx=12, pady=(12, 0))
-        ctk.CTkButton(protected_row, text="Open protected report", command=self.open_protected_report,
+        ctk.CTkButton(protected_row, text="Open protected report folder", command=self.open_protected_report,
                       fg_color=colors["blue"]).pack(side="left", padx=8, pady=8)
         ctk.CTkButton(protected_row, text="Export readable copy", command=self.export_protected_report,
                       fg_color=colors["raised"], hover_color=colors["border"]).pack(side="left", padx=4, pady=8)
@@ -314,8 +334,8 @@ class BasicApp:
             "3. For Live SSH, confirm the device address, port, and account before starting.\n"
             "4. Choose a matching blank CKL template if you want checklist output.\n"
             "5. Start the audit. The run card shows the encrypted file count and exact output folder.\n"
-            "6. Open a protected report in Results, or explicitly export an unencrypted copy.\n\n"
-            "Basic currently does not enforce known_hosts host-key verification. Audit and summary files use .sapenc.\n"
+            "6. Open the protected report folder in Results, or explicitly export an unencrypted copy.\n\n"
+            "Live SSH verifies device host keys by default. You may disable verification for a controlled compatibility test, but that removes protection against connecting to an impersonated device. Audit and summary files use .sapenc.\n"
             "Credentials and the audit-data passphrase are not saved by the app; SSH credentials remain in memory during a live run.\n"
             "Editable checks and profiles are beside the application in data. Review starter checks against the approved benchmark."
         )
@@ -336,6 +356,23 @@ class BasicApp:
         self.selection_label = ctk.CTkLabel(selection_row, text="", justify="left", anchor="w",
                                             wraplength=580, text_color=colors["muted"])
         self.selection_label.pack(side="left", fill="x", expand=True, padx=10)
+
+        group_row = ctk.CTkFrame(targets_card, fg_color=colors["raised"], corner_radius=8)
+        group_row.pack(fill="x", padx=14, pady=(0, 10))
+        ctk.CTkLabel(group_row, text="Saved building", width=120, anchor="w",
+                     text_color=colors["muted"]).pack(side="left", padx=8, pady=8)
+        self.saved_group = ctk.CTkOptionMenu(
+            group_row,
+            values=["Manual device list"] + self._group_names(),
+            command=self.apply_saved_group,
+        )
+        self.saved_group.pack(side="left", fill="x", expand=True, padx=4, pady=8)
+        self.saved_group.set("Manual device list")
+        self.saved_group_summary = ctk.CTkLabel(
+            group_row, text="Choose a saved building to load its devices and profile.",
+            anchor="w", text_color=colors["muted"], wraplength=430,
+        )
+        self.saved_group_summary.pack(side="left", fill="x", expand=True, padx=8)
 
         setup_card = self._audit_card(audit, "02  AUDIT SETUP", "Choose the platform, STIG family, mode, and site profile.")
         row = ctk.CTkFrame(setup_card, fg_color="transparent")
@@ -366,6 +403,16 @@ class BasicApp:
         self.password.pack(side="left", fill="x", expand=True, padx=4)
         self.secret = ctk.CTkEntry(cred, placeholder_text="Enable secret (optional)", show="•")
         self.secret.pack(side="left", fill="x", expand=True, padx=4)
+        self.verify_host_keys = ctk.BooleanVar(value=True)
+        self.host_key_check = ctk.CTkCheckBox(
+            setup_card,
+            text="Verify SSH host keys (recommended)",
+            variable=self.verify_host_keys,
+            command=self.update_mode_badge,
+            text_color=colors["text"],
+            hover_color=colors["blue"],
+        )
+        self.host_key_check.pack(anchor="w", padx=16, pady=(0, 10))
 
         template_card = self._audit_card(audit, "03  BLANK CHECKLIST TEMPLATES", "Assign each platform its own approved CKL template.")
         self.template_tabs = ctk.CTkTabview(template_card, height=170, fg_color=colors["card"])
@@ -437,6 +484,16 @@ class BasicApp:
                                                  fg_color=colors["card"])
         self.view_latest_button.pack(side="left", padx=4)
 
+        from stig_audit_pro.gui.site_setup import SiteSetupPanel
+
+        self.site_setup_panel = SiteSetupPanel(
+            setup_tab,
+            profiles_dir=self.data_root / "profiles",
+            groups_dir=self.data_root / "device_groups",
+            on_profiles_changed=self.refresh_profile_controls,
+            on_group_saved=self.refresh_group_controls,
+        )
+
     def _audit_card(self, parent, title: str, subtitle: str):
         ctk = self.ctk
         card = ctk.CTkFrame(parent, fg_color=self.colors["card"], corner_radius=12,
@@ -449,9 +506,11 @@ class BasicApp:
 
     def update_mode_badge(self):
         live = self.mode.get() == "Live SSH"
-        label = ("LIVE SSH  ·  host-key verification disabled  ·  network device access" if live
+        checking = bool(self.verify_host_keys.get()) if hasattr(self, "verify_host_keys") else True
+        label = (("LIVE SSH  ·  host-key verification enabled  ·  network device access" if checking
+                  else "LIVE SSH  ·  host-key verification DISABLED  ·  compatibility mode") if live
                  else "DEMO MODE  ·  bundled IOS XE evidence  ·  no device connection")
-        self.mode_badge.configure(text=label, text_color=self.colors["amber"] if live else self.colors["teal"])
+        self.mode_badge.configure(text=label, text_color=(self.colors["amber"] if live else self.colors["teal"]))
 
     def update_output_hint(self):
         self.output_hint.configure(text=f"Encrypted .sapenc files will be saved in: {self.output_dir.get().strip() or '[choose folder]'}")
@@ -516,6 +575,45 @@ class BasicApp:
         self.preview_summary();self.messagebox.showinfo('Protected summary saved','Encrypted files created:\n'+'\n'.join(str(p) for p in paths));return paths
 
     def _profiles(self): return [p.stem for p in sorted((self.data_root/"profiles").glob("*.yaml"))] or ["base_iosxe_access"]
+    def _group_names(self):
+        return self.device_group_store.list_groups()
+
+    def refresh_profile_controls(self):
+        values = self._profiles()
+        current = self.profile.get()
+        self.profile.configure(values=values)
+        if current not in values:
+            self.profile.set(default_profile_name(self.platform.get()))
+        self.update_paths()
+
+    def refresh_group_controls(self, selected: str | None = None):
+        values = ["Manual device list"] + self._group_names()
+        self.saved_group.configure(values=values)
+        if selected and selected in values:
+            self.saved_group.set(selected)
+
+    def apply_saved_group(self, name: str):
+        if name == "Manual device list":
+            self.saved_group_summary.configure(text="Manual device list selected. Enter devices above.")
+            return
+        try:
+            group = self.device_group_store.load_group(name)
+            addresses, profile_name = selected_group_values(group)
+            if not addresses:
+                raise ValueError("The saved group has no checked devices")
+            self.devices.delete("1.0", "end")
+            self.devices.insert("1.0", "\n".join(addresses))
+            self.selected_addresses = list(addresses)
+            if profile_name and profile_name in self._profiles():
+                self.profile.set(profile_name)
+            self.sync_selected_devices()
+            self.update_paths()
+            self.saved_group_summary.configure(
+                text=f"{len(addresses)} device(s) · profile {profile_name or '[none]'}"
+            )
+        except (OSError, ValueError) as exc:
+            self.saved_group_summary.configure(text="Could not load saved building")
+            self.messagebox.showerror("Saved building unavailable", str(exc))
     def sync_selected_devices(self):
         addresses,_=parse_device_text(self.devices.get('1.0','end'))
         addresses=list(normalize_basic_targets(addresses))
@@ -553,9 +651,7 @@ class BasicApp:
         self.refresh_license_status()
         self.messagebox.showinfo('License imported','The signed license is installed. Use Select devices to choose your audit batch.')
     def open_protected_report(self):
-        selected=self.filedialog.askopenfilename(title='Open protected Basic report',filetypes=[('Protected Basic report','*.sapenc')])
-        if not selected:return
-        self._display_protected_report(selected)
+        self.open_output_folder()
 
     def _display_protected_report(self, selected):
         try:
@@ -593,7 +689,18 @@ class BasicApp:
         selected=self.filedialog.askopenfilename(title='Select protected Basic report',filetypes=[('Protected Basic report','*.sapenc')])
         if not selected:return
         original_name=Path(selected).stem
-        destination=self.filedialog.asksaveasfilename(title='Export readable copy',initialfile=original_name,defaultextension=Path(original_name).suffix)
+        default_folder = self.last_output_dir
+        if default_folder is None and hasattr(self, 'output_dir'):
+            raw_folder = self.output_dir.get().strip()
+            default_folder = Path(raw_folder).expanduser() if raw_folder else None
+        save_options = {
+            'title': 'Export readable copy',
+            'initialfile': original_name,
+            'defaultextension': Path(original_name).suffix,
+        }
+        if default_folder is not None:
+            save_options['initialdir'] = str(default_folder)
+        destination=self.filedialog.asksaveasfilename(**save_options)
         if not destination:return
         if not self.messagebox.askyesno('Export readable report','This creates an unencrypted file that other applications can read. Continue?'):return
         try:self.artifacts.export(selected,destination)
@@ -714,12 +821,12 @@ class BasicApp:
             creds = None
         self.thread = threading.Thread(
             target=self._run,
-            args=(targets,checks,profile,creds,families,mode,templates,make_txt,make_ckl,output_dir),
+            args=(targets,checks,profile,creds,families,mode,templates,make_txt,make_ckl,output_dir,bool(self.verify_host_keys.get())),
             daemon=True,
         )
         self.thread.start()
         self.root.after(150,self.poll)
-    def _run(self,targets,checks,profile,creds,families,mode,templates,make_txt,make_ckl,output_dir):
+    def _run(self,targets,checks,profile,creds,families,mode,templates,make_txt,make_ckl,output_dir,verify_host_key=True):
         written = []
         run_id = str(uuid.uuid4())
         stage = 'starting audit'
@@ -731,7 +838,7 @@ class BasicApp:
             targets=[DeviceTargetRecord(ip=ip) for ip in addresses]
             service=AuditService(); kwargs=dict(run_id=run_id,targets=targets,checks=checks,profile_provider=lambda _:profile,event_queue=self.events,cancel_event=self.cancel_event)
             stage = 'collecting and evaluating devices'
-            result=service.run_offline(output_loader=sample_outputs,**kwargs) if mode=="Sample outputs" else service.run_live(credentials=creds,**kwargs)
+            result=service.run_offline(output_loader=sample_outputs,**kwargs) if mode=="Sample outputs" else service.run_live(credentials=creds,verify_host_key=verify_host_key,**kwargs)
             # Export is a separate licensed operation; expiry or replacement may have occurred while collecting.
             stage = 'validating license for export'
             self.license_policy.validate(addresses,families,make_txt,make_ckl)
@@ -813,6 +920,10 @@ class BasicApp:
                     self.results_box.insert("end",message+"\n")
                 if hasattr(e, 'run_state') and hasattr(self, 'run_state_label'):
                     self._apply_run_completion(e)
+                    if e.run_state == 'failed':
+                        self.messagebox.showerror('Audit failed', e.message)
+                    elif e.run_state == 'partial':
+                        self.messagebox.showwarning('Audit partially completed', e.message)
                 if hasattr(e,'summary_results'):
                     self.last_results=e.summary_results;self.last_targets=e.summary_targets;self.last_families=e.summary_families;self.last_run_id=e.summary_run_id
                     self.summary_device.configure(values=['All devices']+sorted(set(e.summary_targets)));self.summary_device.set('All devices')

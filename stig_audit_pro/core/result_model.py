@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from enum import Enum
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -17,6 +18,17 @@ StatusLiteral = Literal[
     "Error",
     "Skipped",
 ]
+
+
+class DecisionState(str, Enum):
+    """Internal evaluation state, kept separate from report status text."""
+
+    PASS = "PASS"
+    FAIL = "FAIL"
+    NOT_APPLICABLE = "NOT_APPLICABLE"
+    MANUAL_REVIEW = "MANUAL_REVIEW"
+    EVIDENCE_ERROR = "EVIDENCE_ERROR"
+    UNSUPPORTED = "UNSUPPORTED"
 
 
 class FindingObject(BaseModel):
@@ -43,6 +55,8 @@ class CheckResult(BaseModel):
     title: str
     severity: str
     status: StatusLiteral
+    decision_state: DecisionState = DecisionState.EVIDENCE_ERROR
+    automated_status: StatusLiteral | None = None
     run_id: str | None = None
     rule_id: str | None = None
     stig_id: str | None = None
@@ -79,4 +93,4 @@ class CheckResult(BaseModel):
         return self.status == "NotAFinding"
 
 
-__all__ = ["CheckResult", "FindingObject", "StatusLiteral"]
+__all__ = ["CheckResult", "DecisionState", "FindingObject", "StatusLiteral"]

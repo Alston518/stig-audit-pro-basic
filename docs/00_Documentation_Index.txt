@@ -8,6 +8,8 @@ README.md (repository root)
   Start the app, configure a Basic audit, choose output, and review results.
 08_Report_Output_Troubleshooting.md
   Locate protected reports and diagnose complete, partial, and failed runs.
+12_Site_Setup_Workflow.md
+  Create standalone building profiles and reusable device groups from the GUI.
 
 OPERATORS
 03_Basic_Licensing.md

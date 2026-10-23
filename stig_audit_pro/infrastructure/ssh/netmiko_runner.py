@@ -11,6 +11,7 @@ from stig_audit_pro.core.ssh_runner import (
     DeviceCredentials,
     DeviceTarget,
 )
+from stig_audit_pro.infrastructure.ssh.host_keys import HostKeyTrustStore
 
 
 class NetmikoRunner:
@@ -19,6 +20,9 @@ class NetmikoRunner:
     An instance carries no live connection and is safe to construct per worker.
     The connection object itself never crosses a worker boundary.
     """
+
+    def __init__(self, trust_store: HostKeyTrustStore | None = None) -> None:
+        self.trust_store = trust_store or HostKeyTrustStore()
 
     def run_commands(
         self,
@@ -29,6 +33,7 @@ class NetmikoRunner:
         cancel_event: threading.Event | None = None,
         command_timeout: int | None = None,
         on_command: Callable[[str], None] | None = None,
+        verify_host_key: bool = True,
     ) -> DeviceCommandRun:
         approved = DEFAULT_COMMAND_POLICY.validate_many(commands)
         pagination = DEFAULT_COMMAND_POLICY.validate("terminal length 0")
@@ -47,11 +52,10 @@ class NetmikoRunner:
             "timeout": target.timeout,
             "banner_timeout": target.timeout,
             "auth_timeout": target.timeout,
-            # Temporary Basic-mode compatibility setting.  Host-key
-            # verification is disabled until the operator workflow is
-            # redesigned to make enrollment easier and auditable.
-            "ssh_strict": False,
+            "ssh_strict": bool(verify_host_key),
             "system_host_keys": False,
+            "alt_host_keys": bool(verify_host_key),
+            "alt_key_file": str(self.trust_store.path),
             "use_keys": False,
             "allow_agent": False,
         }
@@ -90,3 +94,4 @@ class NetmikoRunner:
 
 
 __all__ = ["NetmikoRunner"]
+

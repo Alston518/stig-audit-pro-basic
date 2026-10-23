@@ -167,6 +167,7 @@ class RunService:
         repository: AuditRunRepository | None = None,
         evidence_store: Any | None = None,
         audit_service: AuditService | None = None,
+        vault: Any | None = None,
     ) -> None:
         self.database = database or Database()
         self.repository = repository or AuditRunRepository(self.database)
@@ -174,7 +175,7 @@ class RunService:
         if evidence_store is None:
             from stig_audit_pro.infrastructure.evidence.evidence_store import EvidenceStore
 
-            evidence_store = EvidenceStore(repository=self.repository)
+            evidence_store = EvidenceStore(repository=self.repository, vault=vault)
         self.evidence_store = evidence_store
         self.audit_service = audit_service or AuditService()
         location = self.database.path or self.database.url
@@ -627,11 +628,33 @@ class RunService:
             if artifact.id in wanted
         ]
 
-    def save_manual_decision(self, result: CheckResult, *, status: str, finding_details: str, comments: str) -> list[CheckResult]:
+    def save_manual_decision(
+        self,
+        result: CheckResult,
+        *,
+        status: str,
+        finding_details: str,
+        comments: str,
+        justification: str | None = None,
+    ) -> list[CheckResult]:
         if not result.run_id:
             raise ValueError("Manual decisions require a persisted Audit Run")
-        self.repository.update_result_decision(result.run_id, result.ip, result.vuln_id, status=status, finding_details=finding_details, comments=comments)
-        self.activity_log.record("MANUAL_REVIEW_RECORDED", "check_result", f"{result.run_id}:{result.ip}:{result.vuln_id}", details={"status": status})
+        reviewer_justification = justification or comments or finding_details
+        self.repository.update_result_decision(
+            result.run_id,
+            result.ip,
+            result.vuln_id,
+            status=status,
+            finding_details=finding_details,
+            comments=comments,
+            justification=reviewer_justification,
+        )
+        self.activity_log.record(
+            "MANUAL_REVIEW_RECORDED",
+            "check_result",
+            f"{result.run_id}:{result.ip}:{result.vuln_id}",
+            details={"status": status, "justification": reviewer_justification},
+        )
         return self.load_results(result.run_id)
 
     def verify_evidence(self, run_id: str) -> Any:

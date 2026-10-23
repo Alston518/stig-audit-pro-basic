@@ -1,0 +1,4 @@
+building,profile,platform,hostname,ip
+Building 1,Building_1,IOS XE,SW-B1-01,10.10.1.11
+Building 1,Building_1,IOS XE,SW-B1-02,10.10.1.12
+Building 2,Building_2,IOS XE,SW-B2-01,10.10.2.11

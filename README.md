@@ -35,6 +35,10 @@ until a new release asset is published from the reviewed commit.
 See [the encryption and SSH guide](docs/07_Basic_Encryption_SSH_and_Licensing.md)
 for the security boundary, reviewer checks, and known limitations.
 
+## Guided site setup
+
+Use **Profiles & Sites** to create a standalone profile for each building and a reusable device group. For a new deployment, download the master inventory template, fill in the building and device rows, and import it to create all building groups at once. Choose the saved building on the Audit tab to load its device inventory and profile without editing YAML. See [`docs/12_Site_Setup_Workflow.md`](docs/12_Site_Setup_Workflow.md).
+
 ## Run from source
 
 Requirements: Windows, Python 3.12, and the packages in `requirements.txt`.
