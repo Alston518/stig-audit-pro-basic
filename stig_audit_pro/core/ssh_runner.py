@@ -45,6 +45,8 @@ class NetmikoSshRunner:
         target: DeviceTarget,
         credentials: DeviceCredentials,
         commands: list[str],
+        *,
+        verify_host_key: bool = True,
     ) -> DeviceCommandRun:
         # Policy validation intentionally happens before importing Netmiko or
         # attempting a connection.  Unsafe YAML/caller input therefore cannot
@@ -65,9 +67,9 @@ class NetmikoSshRunner:
             "timeout": target.timeout,
             "banner_timeout": target.timeout,
             "auth_timeout": target.timeout,
-            "ssh_strict": True,
+            "ssh_strict": bool(verify_host_key),
             "system_host_keys": False,
-            "alt_host_keys": True,
+            "alt_host_keys": bool(verify_host_key),
             "alt_key_file": str(self.trust_store.path),
             "use_keys": False,
             "allow_agent": False,

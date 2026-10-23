@@ -49,6 +49,34 @@ def test_basic_ssh_host_key_verification_is_strict(monkeypatch, runner):
     assert result.outputs == {}
 
 
+@pytest.mark.parametrize("runner", [NetmikoRunner(), NetmikoSshRunner()])
+def test_basic_ssh_host_key_check_can_be_disabled_explicitly(monkeypatch, runner):
+    parameters = {}
+
+    class Connection:
+        def __enter__(self):
+            return self
+        def __exit__(self, *_args):
+            return False
+        def send_command(self, command, **_kwargs):
+            return "ok"
+
+    def capture(**kwargs):
+        parameters.update(kwargs)
+        return Connection()
+
+    monkeypatch.setitem(sys.modules, "netmiko", types.SimpleNamespace(ConnectHandler=capture))
+    result = runner.run_commands(
+        DeviceTarget(ip="192.0.2.10"),
+        DeviceCredentials("operator", "example"),
+        ["show version"],
+        verify_host_key=False,
+    )
+    assert parameters["ssh_strict"] is False
+    assert parameters["alt_host_keys"] is False
+    assert result.status == "scanned"
+
+
 def test_basic_artifacts_are_encrypted_and_only_exported_explicitly(tmp_path):
     vault_path = tmp_path / "basic-vault.json"
     vault = AtRestVault.open(vault_path, "a long test passphrase", create=True)

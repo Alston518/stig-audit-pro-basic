@@ -33,6 +33,7 @@ class NetmikoRunner:
         cancel_event: threading.Event | None = None,
         command_timeout: int | None = None,
         on_command: Callable[[str], None] | None = None,
+        verify_host_key: bool = True,
     ) -> DeviceCommandRun:
         approved = DEFAULT_COMMAND_POLICY.validate_many(commands)
         pagination = DEFAULT_COMMAND_POLICY.validate("terminal length 0")
@@ -51,9 +52,9 @@ class NetmikoRunner:
             "timeout": target.timeout,
             "banner_timeout": target.timeout,
             "auth_timeout": target.timeout,
-            "ssh_strict": True,
+            "ssh_strict": bool(verify_host_key),
             "system_host_keys": False,
-            "alt_host_keys": True,
+            "alt_host_keys": bool(verify_host_key),
             "alt_key_file": str(self.trust_store.path),
             "use_keys": False,
             "allow_agent": False,

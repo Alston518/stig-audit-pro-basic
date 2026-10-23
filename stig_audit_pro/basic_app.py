@@ -335,7 +335,7 @@ class BasicApp:
             "4. Choose a matching blank CKL template if you want checklist output.\n"
             "5. Start the audit. The run card shows the encrypted file count and exact output folder.\n"
             "6. Open the protected report folder in Results, or explicitly export an unencrypted copy.\n\n"
-            "Basic currently does not enforce known_hosts host-key verification. Audit and summary files use .sapenc.\n"
+            "Live SSH verifies device host keys by default. You may disable verification for a controlled compatibility test, but that removes protection against connecting to an impersonated device. Audit and summary files use .sapenc.\n"
             "Credentials and the audit-data passphrase are not saved by the app; SSH credentials remain in memory during a live run.\n"
             "Editable checks and profiles are beside the application in data. Review starter checks against the approved benchmark."
         )
@@ -403,6 +403,16 @@ class BasicApp:
         self.password.pack(side="left", fill="x", expand=True, padx=4)
         self.secret = ctk.CTkEntry(cred, placeholder_text="Enable secret (optional)", show="•")
         self.secret.pack(side="left", fill="x", expand=True, padx=4)
+        self.verify_host_keys = ctk.BooleanVar(value=True)
+        self.host_key_check = ctk.CTkCheckBox(
+            setup_card,
+            text="Verify SSH host keys (recommended)",
+            variable=self.verify_host_keys,
+            command=self.update_mode_badge,
+            text_color=colors["text"],
+            hover_color=colors["blue"],
+        )
+        self.host_key_check.pack(anchor="w", padx=16, pady=(0, 10))
 
         template_card = self._audit_card(audit, "03  BLANK CHECKLIST TEMPLATES", "Assign each platform its own approved CKL template.")
         self.template_tabs = ctk.CTkTabview(template_card, height=170, fg_color=colors["card"])
@@ -496,9 +506,11 @@ class BasicApp:
 
     def update_mode_badge(self):
         live = self.mode.get() == "Live SSH"
-        label = ("LIVE SSH  ·  host-key verification disabled  ·  network device access" if live
+        checking = bool(self.verify_host_keys.get()) if hasattr(self, "verify_host_keys") else True
+        label = (("LIVE SSH  ·  host-key verification enabled  ·  network device access" if checking
+                  else "LIVE SSH  ·  host-key verification DISABLED  ·  compatibility mode") if live
                  else "DEMO MODE  ·  bundled IOS XE evidence  ·  no device connection")
-        self.mode_badge.configure(text=label, text_color=self.colors["amber"] if live else self.colors["teal"])
+        self.mode_badge.configure(text=label, text_color=(self.colors["amber"] if live else self.colors["teal"]))
 
     def update_output_hint(self):
         self.output_hint.configure(text=f"Encrypted .sapenc files will be saved in: {self.output_dir.get().strip() or '[choose folder]'}")
@@ -798,12 +810,12 @@ class BasicApp:
             creds = None
         self.thread = threading.Thread(
             target=self._run,
-            args=(targets,checks,profile,creds,families,mode,templates,make_txt,make_ckl,output_dir),
+            args=(targets,checks,profile,creds,families,mode,templates,make_txt,make_ckl,output_dir,bool(self.verify_host_keys.get())),
             daemon=True,
         )
         self.thread.start()
         self.root.after(150,self.poll)
-    def _run(self,targets,checks,profile,creds,families,mode,templates,make_txt,make_ckl,output_dir):
+    def _run(self,targets,checks,profile,creds,families,mode,templates,make_txt,make_ckl,output_dir,verify_host_key=True):
         written = []
         run_id = str(uuid.uuid4())
         stage = 'starting audit'
@@ -815,7 +827,7 @@ class BasicApp:
             targets=[DeviceTargetRecord(ip=ip) for ip in addresses]
             service=AuditService(); kwargs=dict(run_id=run_id,targets=targets,checks=checks,profile_provider=lambda _:profile,event_queue=self.events,cancel_event=self.cancel_event)
             stage = 'collecting and evaluating devices'
-            result=service.run_offline(output_loader=sample_outputs,**kwargs) if mode=="Sample outputs" else service.run_live(credentials=creds,**kwargs)
+            result=service.run_offline(output_loader=sample_outputs,**kwargs) if mode=="Sample outputs" else service.run_live(credentials=creds,verify_host_key=verify_host_key,**kwargs)
             # Export is a separate licensed operation; expiry or replacement may have occurred while collecting.
             stage = 'validating license for export'
             self.license_policy.validate(addresses,families,make_txt,make_ckl)
@@ -897,6 +909,10 @@ class BasicApp:
                     self.results_box.insert("end",message+"\n")
                 if hasattr(e, 'run_state') and hasattr(self, 'run_state_label'):
                     self._apply_run_completion(e)
+                    if e.run_state == 'failed':
+                        self.messagebox.showerror('Audit failed', e.message)
+                    elif e.run_state == 'partial':
+                        self.messagebox.showwarning('Audit partially completed', e.message)
                 if hasattr(e,'summary_results'):
                     self.last_results=e.summary_results;self.last_targets=e.summary_targets;self.last_families=e.summary_families;self.last_run_id=e.summary_run_id
                     self.summary_device.configure(values=['All devices']+sorted(set(e.summary_targets)));self.summary_device.set('All devices')
