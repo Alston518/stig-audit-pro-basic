@@ -26,7 +26,7 @@ from stig_audit_pro.storage.device_groups import DeviceTargetRecord
 
 
 @pytest.mark.parametrize("runner", [NetmikoRunner(), NetmikoSshRunner()])
-def test_basic_ssh_host_key_verification_is_temporarily_disabled(monkeypatch, runner):
+def test_basic_ssh_host_key_verification_is_strict(monkeypatch, runner):
     parameters = {}
 
     def reject_key(**kwargs):
@@ -39,12 +39,42 @@ def test_basic_ssh_host_key_verification_is_temporarily_disabled(monkeypatch, ru
         DeviceCredentials("operator", "example"),
         ["show version"],
     )
-    assert parameters["ssh_strict"] is False
+    assert parameters["ssh_strict"] is True
     assert parameters["system_host_keys"] is False
+    assert parameters["alt_host_keys"] is True
+    assert Path(parameters["alt_key_file"]).is_file()
     assert parameters["use_keys"] is False
     assert parameters["allow_agent"] is False
     assert result.status == "skipped"
     assert result.outputs == {}
+
+
+@pytest.mark.parametrize("runner", [NetmikoRunner(), NetmikoSshRunner()])
+def test_basic_ssh_host_key_check_can_be_disabled_explicitly(monkeypatch, runner):
+    parameters = {}
+
+    class Connection:
+        def __enter__(self):
+            return self
+        def __exit__(self, *_args):
+            return False
+        def send_command(self, command, **_kwargs):
+            return "ok"
+
+    def capture(**kwargs):
+        parameters.update(kwargs)
+        return Connection()
+
+    monkeypatch.setitem(sys.modules, "netmiko", types.SimpleNamespace(ConnectHandler=capture))
+    result = runner.run_commands(
+        DeviceTarget(ip="192.0.2.10"),
+        DeviceCredentials("operator", "example"),
+        ["show version"],
+        verify_host_key=False,
+    )
+    assert parameters["ssh_strict"] is False
+    assert parameters["alt_host_keys"] is False
+    assert result.status == "scanned"
 
 
 def test_basic_artifacts_are_encrypted_and_only_exported_explicitly(tmp_path):

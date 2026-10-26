@@ -6,6 +6,7 @@ import pytest
 from stig_audit_pro.core.models import AuditRun
 from stig_audit_pro.infrastructure.evidence import EvidenceStore, RunFinalizedError
 from stig_audit_pro.infrastructure.persistence import AuditRunRepository, Database
+from stig_audit_pro.infrastructure.security.at_rest import AtRestVault, MAGIC
 
 
 def _store(tmp_path):
@@ -77,3 +78,22 @@ def test_purge_raw_evidence_retains_structured_bundle(tmp_path):
         assert not (store.root / artifact.relative_path).exists()
     finally:
         database.dispose()
+
+
+def test_vault_backed_evidence_is_ciphertext_on_disk_and_round_trips(tmp_path):
+    vault = AtRestVault.open(tmp_path / "vault.json", "test-pass", create=True)
+    store = EvidenceStore(tmp_path / "encrypted-runs", vault=vault)
+    run_id = str(uuid4())
+    store.create_run(run_id)
+
+    artifact = store.write_evidence(
+        run_id, "192.0.2.20", "show running-config", "hostname SECURE\n"
+    )
+    path = store.root / artifact.relative_path
+    assert path.read_bytes().startswith(MAGIC)
+    assert store.read_evidence(artifact.relative_path) == "hostname SECURE\n"
+    assert store.verify_artifact(run_id, artifact).status.value == "VALID"
+
+    locked = EvidenceStore(store.root)
+    with pytest.raises(RuntimeError, match="unlock the audit vault"):
+        locked.read_evidence(artifact.relative_path)

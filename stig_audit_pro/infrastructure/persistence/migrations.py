@@ -12,7 +12,7 @@ from sqlalchemy import Engine, inspect, select
 
 from stig_audit_pro.infrastructure.persistence.db_models import Base, SchemaVersion
 
-CURRENT_SCHEMA_VERSION = 3
+CURRENT_SCHEMA_VERSION = 5
 
 
 class UnsupportedSchemaVersion(RuntimeError):
@@ -54,6 +54,35 @@ def initialize_schema(engine: Engine) -> int:
         if "title" not in check_result_columns:
             with engine.begin() as connection:
                 connection.exec_driver_sql("ALTER TABLE check_result ADD COLUMN title TEXT")
+    if existing_version and existing_version < 4:
+        check_result_columns = {
+            column["name"] for column in inspect(engine).get_columns("check_result")
+        }
+        additions = {
+            "decision_state": "TEXT",
+            "automated_status": "TEXT",
+            "automated_finding_details": "TEXT",
+            "automated_comments": "TEXT",
+            "automated_evaluation_reason": "TEXT",
+            "review_status": "TEXT",
+            "review_justification": "TEXT",
+            "reviewed_at": "DATETIME",
+        }
+        with engine.begin() as connection:
+            for name, sql_type in additions.items():
+                if name not in check_result_columns:
+                    connection.exec_driver_sql(
+                        f"ALTER TABLE check_result ADD COLUMN {name} {sql_type}"
+                    )
+    if existing_version and existing_version < 5:
+        activity_columns = {
+            column["name"] for column in inspect(engine).get_columns("activity_log")
+        }
+        with engine.begin() as connection:
+            if "previous_hash" not in activity_columns:
+                connection.exec_driver_sql("ALTER TABLE activity_log ADD COLUMN previous_hash TEXT")
+            if "event_hash" not in activity_columns:
+                connection.exec_driver_sql("ALTER TABLE activity_log ADD COLUMN event_hash TEXT NOT NULL DEFAULT ''")
     with engine.begin() as connection:
         version = connection.scalar(
             select(SchemaVersion.version).where(SchemaVersion.id == 1)
