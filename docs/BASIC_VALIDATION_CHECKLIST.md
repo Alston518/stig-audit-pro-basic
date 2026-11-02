@@ -13,9 +13,9 @@
 ## Still to validate
 
 - [x] **3. Profiles and device groups**
-  - [ ] Site profiles are present after reopening the app.
-  - [ ] Device groups are present after reopening the app.
-  - [ ] Selecting a building loads the expected devices and profile.
+  - [x] Site profiles are present after reopening the app.
+  - [x] Device groups are present after reopening the app.
+  - [x] Selecting a building loads the expected devices and profile.
   - [ ] Editing and saving a profile preserves unrelated fields.
 
 - [ ] **5. Protected report navigation**
@@ -57,4 +57,5 @@
 - Automated regression suite: **330 passed, 1 skipped**.
 - Last source change: readable exports default to the Protected Output folder.
 - Feature work should wait until the remaining validation items are complete.
+
 
