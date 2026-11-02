@@ -321,6 +321,8 @@ class BasicApp:
                      text_color=colors["muted"]).pack(anchor="w", padx=16)
         protected_row = ctk.CTkFrame(result, fg_color=colors["card"], corner_radius=10)
         protected_row.pack(fill="x", padx=12, pady=(12, 0))
+        ctk.CTkButton(protected_row, text="Import protected report", command=self.import_protected_report,
+                      fg_color=colors["blue"]).pack(side="left", padx=8, pady=8)
         ctk.CTkButton(protected_row, text="Open protected report folder", command=self.open_protected_report,
                       fg_color=colors["blue"]).pack(side="left", padx=8, pady=8)
         ctk.CTkButton(protected_row, text="Export readable copy", command=self.export_protected_report,
@@ -334,7 +336,7 @@ class BasicApp:
             "3. For Live SSH, confirm the device address, port, and account before starting.\n"
             "4. Choose a matching blank CKL template if you want checklist output.\n"
             "5. Start the audit. The run card shows the encrypted file count and exact output folder.\n"
-            "6. Open the protected report folder in Results, or explicitly export an unencrypted copy.\n\n"
+            "6. Import a protected report in Results to read it in memory, or explicitly export an unencrypted copy.\n\n"
             "Live SSH verifies device host keys by default. You may disable verification for a controlled compatibility test, but that removes protection against connecting to an impersonated device. Audit and summary files use .sapenc.\n"
             "Credentials and the audit-data passphrase are not saved by the app; SSH credentials remain in memory during a live run.\n"
             "Editable checks and profiles are beside the application in data. Review starter checks against the approved benchmark."
@@ -653,6 +655,25 @@ class BasicApp:
     def open_protected_report(self):
         self.open_output_folder()
 
+    def _report_folder(self):
+        folder = self.last_output_dir
+        if folder is None and hasattr(self, 'output_dir'):
+            raw_folder = self.output_dir.get().strip()
+            folder = Path(raw_folder).expanduser() if raw_folder else None
+        return Path(folder) if folder is not None else None
+
+    def import_protected_report(self):
+        folder = self._report_folder()
+        options = {
+            'title': 'Import protected Basic report',
+            'filetypes': [('Protected Basic report', '*.sapenc')],
+        }
+        if folder is not None:
+            options['initialdir'] = str(folder)
+        selected = self.filedialog.askopenfilename(**options)
+        if selected:
+            self._display_protected_report(selected)
+
     def _display_protected_report(self, selected):
         try:
             content=self.artifacts.read(selected)
@@ -686,13 +707,14 @@ class BasicApp:
         except OSError as exc:
             self.messagebox.showerror('Could not open output folder', f'{type(exc).__name__}: {folder}')
     def export_protected_report(self):
-        selected=self.filedialog.askopenfilename(title='Select protected Basic report',filetypes=[('Protected Basic report','*.sapenc')])
+        folder = self._report_folder()
+        options = {'title': 'Select protected Basic report', 'filetypes': [('Protected Basic report', '*.sapenc')]}
+        if folder is not None:
+            options['initialdir'] = str(folder)
+        selected=self.filedialog.askopenfilename(**options)
         if not selected:return
         original_name=Path(selected).stem
-        default_folder = self.last_output_dir
-        if default_folder is None and hasattr(self, 'output_dir'):
-            raw_folder = self.output_dir.get().strip()
-            default_folder = Path(raw_folder).expanduser() if raw_folder else None
+        default_folder = self._report_folder()
         save_options = {
             'title': 'Export readable copy',
             'initialfile': original_name,

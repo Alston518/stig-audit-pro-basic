@@ -374,3 +374,24 @@ def test_export_readable_copy_defaults_to_protected_output_folder(monkeypatch, t
     app.export_protected_report()
 
     assert calls["initialdir"] == str(protected.parent)
+
+def test_import_protected_report_defaults_to_output_folder_and_displays(monkeypatch, tmp_path):
+    from stig_audit_pro import basic_app
+
+    output = tmp_path / "reports"
+    output.mkdir()
+    protected = output / "finding.txt.sapenc"
+    protected.write_bytes(b"encrypted")
+    app = basic_app.BasicApp.__new__(basic_app.BasicApp)
+    app.last_output_dir = output
+    calls = {}
+    app.filedialog = SimpleNamespace(
+        askopenfilename=lambda **kwargs: calls.update(kwargs) or str(protected),
+    )
+    displayed = []
+    app._display_protected_report = lambda selected: displayed.append(selected)
+
+    app.import_protected_report()
+
+    assert calls["initialdir"] == str(output)
+    assert displayed == [str(protected)]
