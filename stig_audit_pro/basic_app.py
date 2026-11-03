@@ -6,7 +6,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from stig_audit_pro.application.audit_service import AuditService
 from stig_audit_pro.build_info import load_build_metadata
-from stig_audit_pro.core.ssh_runner import DeviceCredentials
+from stig_audit_pro.core.ssh_runner import HOST_KEY_FAILURE_MESSAGES, DeviceCredentials
 from stig_audit_pro.core.yaml_loader import ConfigValidationError, load_check_library, load_profile
 from stig_audit_pro.reports.audit_report import build_text_report
 from stig_audit_pro.reports.basic_summary import Filter, STATUSES, CATS, cat, summarize, render_csv, render_html, render_pdf
@@ -189,8 +189,10 @@ def report_stem(asset, scan_ip: str, families: list[str], when: datetime | None 
 
 def _failed_outcome_text(outcome) -> str:
     """Give operators actionable failures without echoing raw SSH exceptions."""
-    message = (outcome.error_message or "").casefold()
-    if outcome.status.value == "AUTH_FAILED":
+    status = outcome.status.value
+    if status in HOST_KEY_FAILURE_MESSAGES:
+        reason = HOST_KEY_FAILURE_MESSAGES[status]
+    elif status == "AUTH_FAILED":
         reason = "SSH authentication failed; check the account and credentials"
     elif outcome.status.value == "CONNECT_FAILED":
         reason = "SSH connection failed; check the address, port, and reachability"
@@ -206,7 +208,9 @@ def _failed_outcome_text(outcome) -> str:
 def _scan_event_text(event) -> str:
     """Render live progress without displaying untrusted device/SSH errors."""
     status = str(event.status)
-    if status in {"AUTH_FAILED", "CONNECT_FAILED", "COLLECTION_FAILED", "EVALUATION_FAILED", "CANCELLED"}:
+    if status in HOST_KEY_FAILURE_MESSAGES or status in {
+        "AUTH_FAILED", "CONNECT_FAILED", "COLLECTION_FAILED", "EVALUATION_FAILED", "CANCELLED"
+    }:
         return _failed_outcome_text(SimpleNamespace(
             target_ip=event.target_ip,
             status=SimpleNamespace(value=status),

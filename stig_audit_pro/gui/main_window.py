@@ -824,7 +824,10 @@ class StigAuditProApp(ctk.CTk):
 
     def retry_failed_devices(self, run_id: str) -> None:
         """Create a linked retry run containing only previously failed devices."""
-        failure_states = {"AUTH_FAILED", "CONNECT_FAILED", "COLLECTION_FAILED", "EVALUATION_FAILED"}
+        failure_states = {
+            "AUTH_FAILED", "CONNECT_FAILED", "HOST_KEY_UNKNOWN", "HOST_KEY_CHANGED",
+            "COLLECTION_FAILED", "EVALUATION_FAILED",
+        }
         devices = self.run_service.repository.list_devices(run_id)
         failed = [item for item in devices if item.status in failure_states]
         if not failed:

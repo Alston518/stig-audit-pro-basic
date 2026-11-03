@@ -7,12 +7,17 @@ import threading
 from pathlib import Path
 from types import SimpleNamespace
 
+import paramiko
+import pytest
+
 from stig_audit_pro import basic_app
 from stig_audit_pro.application.audit_service import AuditService
 from stig_audit_pro.core.ssh_runner import DeviceCommandRun, DeviceCredentials
 from stig_audit_pro.core.yaml_loader import load_profile
 from stig_audit_pro.infrastructure.security.at_rest import AtRestVault
 from stig_audit_pro.infrastructure.security.basic_artifacts import ProtectedArtifactStore
+from stig_audit_pro.infrastructure.ssh.host_keys import HostKeyTrustStore
+from stig_audit_pro.infrastructure.ssh.netmiko_runner import NetmikoRunner
 from stig_audit_pro.licensing import LicenseManager
 from stig_audit_pro.licensing.basic_policy import BasicLicensePolicy
 from stig_audit_pro.storage.device_groups import DeviceTargetRecord
@@ -35,6 +40,49 @@ def _app(tmp_path: Path, *, allow_batch: bool = False):
 def _last_message(app) -> str:
     messages = [event.message for event in list(app.events.queue) if hasattr(event, "message")]
     return messages[-1]
+
+
+@pytest.mark.parametrize(("failure", "expected"), [
+    ("unknown", "SSH host key is not stored"),
+    ("changed", "SSH host key has changed"),
+    ("unreachable", "SSH connection failed; check the address, port, and reachability"),
+])
+def test_live_ssh_distinguishes_host_key_rejection_from_reachability(
+    monkeypatch, tmp_path, failure, expected
+):
+    key = paramiko.RSAKey.generate(1024)
+
+    def reject(client, hostname, **kwargs):
+        assert isinstance(client._policy, paramiko.RejectPolicy)
+        if failure == "unknown":
+            client._policy.missing_host_key(client, hostname, key)
+        if failure == "changed":
+            raise paramiko.BadHostKeyException(hostname, key, paramiko.RSAKey.generate(1024))
+        raise ConnectionRefusedError("private diagnostic")
+
+    monkeypatch.setattr(paramiko.SSHClient, "_log", lambda *_args: None)
+    monkeypatch.setattr(paramiko.SSHClient, "connect", reject)
+    trust_store = HostKeyTrustStore(tmp_path / "known_hosts")
+    monkeypatch.setattr(
+        basic_app, "AuditService",
+        lambda: AuditService(runner_factory=lambda: NetmikoRunner(trust_store)),
+    )
+    app = _app(tmp_path)
+    output = tmp_path / "reports"
+    app._run(
+        [DeviceTargetRecord(ip="192.0.2.10")], [], None,
+        DeviceCredentials("operator", "private password"), ["iosxe_l2"], "Live SSH",
+        {}, True, False, output,
+    )
+
+    events = list(app.events.queue)
+    final = events[-1]
+    assert final.run_state == "failed"
+    assert expected in final.message
+    assert any(expected in basic_app._scan_event_text(event) for event in events[:-1])
+    assert "private " not in final.message
+    assert key.get_base64() not in final.message
+    assert not list(output.glob("*"))
 
 
 def test_all_failed_ssh_devices_do_not_claim_reports_were_written(monkeypatch, tmp_path):

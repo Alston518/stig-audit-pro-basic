@@ -89,7 +89,7 @@ class AuditService:
             if command_run.status == "cancelled":
                 return DeviceScanOutcome(target.ip, DeviceStatus.CANCELLED)
             if command_run.status != "scanned":
-                status = _connection_failure_status(command_run.error_message or "")
+                status = command_run.failure_status or _connection_failure_status(command_run.error_message or "")
                 return DeviceScanOutcome(
                     target.ip, status, error_message=command_run.error_message
                 )

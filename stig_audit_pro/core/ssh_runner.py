@@ -6,9 +6,20 @@ from dataclasses import dataclass
 
 from stig_audit_pro.core.command_planner import normalize_safe_commands
 from stig_audit_pro.core.command_policy import DEFAULT_COMMAND_POLICY
+from stig_audit_pro.core.models import DeviceStatus
 from stig_audit_pro.core.output_cache import CommandOutputCache
 from stig_audit_pro.infrastructure.ssh.host_keys import HostKeyTrustStore
 
+HOST_KEY_FAILURE_MESSAGES = {
+    DeviceStatus.HOST_KEY_UNKNOWN: (
+        "SSH host key is not stored. Verify the switch fingerprint independently "
+        "and enroll its public key before retrying."
+    ),
+    DeviceStatus.HOST_KEY_CHANGED: (
+        "SSH host key has changed. Verify the new fingerprint independently "
+        "before updating the stored key."
+    ),
+}
 
 @dataclass(slots=True)
 class DeviceTarget:
@@ -31,6 +42,7 @@ class DeviceCommandRun:
     status: str
     outputs: dict[str, str]
     error_message: str | None = None
+    failure_status: DeviceStatus | None = None
 
 
 class NetmikoSshRunner:

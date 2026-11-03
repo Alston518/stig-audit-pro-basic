@@ -542,7 +542,8 @@ class RunService:
             DeviceStatus.CANCELLED if cancelled else DeviceStatus.EVALUATION_FAILED
         )
         terminal = {
-            "COMPLETE", "AUTH_FAILED", "CONNECT_FAILED", "COLLECTION_FAILED",
+            "COMPLETE", "AUTH_FAILED", "CONNECT_FAILED", "HOST_KEY_UNKNOWN",
+            "HOST_KEY_CHANGED", "COLLECTION_FAILED",
             "EVALUATION_FAILED", "CANCELLED",
         }
         for device in self.repository.list_devices(context.run_id):

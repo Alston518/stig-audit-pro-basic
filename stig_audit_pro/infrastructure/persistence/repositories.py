@@ -534,6 +534,8 @@ class AuditRunRepository:
             failure_statuses = {
                 "AUTH_FAILED",
                 "CONNECT_FAILED",
+                "HOST_KEY_UNKNOWN",
+                "HOST_KEY_CHANGED",
                 "COLLECTION_FAILED",
                 "EVALUATION_FAILED",
             }

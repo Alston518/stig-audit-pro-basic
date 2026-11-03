@@ -6,12 +6,32 @@ import threading
 from collections.abc import Callable
 
 from stig_audit_pro.core.command_policy import DEFAULT_COMMAND_POLICY
+from stig_audit_pro.core.models import DeviceStatus
 from stig_audit_pro.core.ssh_runner import (
+    HOST_KEY_FAILURE_MESSAGES,
     DeviceCommandRun,
     DeviceCredentials,
     DeviceTarget,
 )
 from stig_audit_pro.infrastructure.ssh.host_keys import HostKeyTrustStore
+
+
+def _host_key_failure(exc: Exception, target: DeviceTarget) -> DeviceStatus | None:
+    from paramiko import BadHostKeyException, SSHException
+
+    host = target.ip if target.port == 22 else f"[{target.ip}]:{target.port}"
+    # Netmiko wraps Paramiko SSHException as a timeout. Inspect the original
+    # exception so TCP errors and SSH negotiation failures stay distinct.
+    error: BaseException | None = exc
+    seen: set[int] = set()
+    while error is not None and id(error) not in seen:
+        seen.add(id(error))
+        if isinstance(error, BadHostKeyException):
+            return DeviceStatus.HOST_KEY_CHANGED
+        if isinstance(error, SSHException) and str(error) == f"Server {host!r} not found in known_hosts":
+            return DeviceStatus.HOST_KEY_UNKNOWN
+        error = error.__cause__ or error.__context__
+    return None
 
 
 class NetmikoRunner:
@@ -88,6 +108,12 @@ class NetmikoRunner:
                     )
             return DeviceCommandRun(target.ip, "scanned", outputs)
         except Exception as exc:
+            failure = _host_key_failure(exc, target) if verify_host_key else None
+            if failure is not None:
+                return DeviceCommandRun(
+                    target.ip, "skipped", outputs, HOST_KEY_FAILURE_MESSAGES[failure],
+                    failure_status=failure,
+                )
             # Do not include connection parameters in the exception: they hold
             # session-only credentials.  Netmiko exception text is retained.
             return DeviceCommandRun(target.ip, "skipped", outputs, str(exc))
