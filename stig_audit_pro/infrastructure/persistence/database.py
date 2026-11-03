@@ -91,7 +91,10 @@ class Database:
             version = get_schema_version(self.engine)
             if self.path is not None and 0 < version < CURRENT_SCHEMA_VERSION:
                 stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-                backup = self.path.with_name(f"{self.path.name}.pre-v{CURRENT_SCHEMA_VERSION}-{stamp}.bak")
+                # Keep the established v1/v2 backup name for compatibility;
+                # later migrations are tagged with their target schema.
+                backup_version = 3 if version < 3 else CURRENT_SCHEMA_VERSION
+                backup = self.path.with_name(f"{self.path.name}.pre-v{backup_version}-{stamp}.bak")
                 shutil.copy2(self.path, backup)
             initialize_schema(self.engine)
 

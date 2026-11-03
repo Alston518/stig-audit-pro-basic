@@ -48,3 +48,21 @@ def test_audit_service_uses_one_runner_per_device_and_traces_results():
     assert all(item.run_id == run_id for item in result.results)
     assert all(item.rule_id == "SV-TEST" for item in result.results)
     assert all(item.check_type == "command_contains" for item in result.results)
+
+
+def test_audit_service_passes_host_key_setting_to_runner():
+    received = []
+
+    class FakeRunner:
+        def run_commands(self, target, _credentials, _commands, **kwargs):
+            received.append(kwargs["verify_host_key"])
+            return DeviceCommandRun(target.ip, "skipped", {}, "Unknown server host key")
+
+    result = AuditService(runner_factory=FakeRunner).run_live(
+        run_id="00000000-0000-4000-8000-000000000043",
+        targets=[Target("192.0.2.10")], credentials=DeviceCredentials("u", "p"),
+        checks=[], profile_provider=lambda _target: SiteProfile(profile_name="test"),
+        verify_host_key=False,
+    )
+    assert received == [False]
+    assert result.summary.failure_count == 1

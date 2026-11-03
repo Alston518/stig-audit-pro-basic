@@ -6,8 +6,20 @@ from dataclasses import dataclass
 
 from stig_audit_pro.core.command_planner import normalize_safe_commands
 from stig_audit_pro.core.command_policy import DEFAULT_COMMAND_POLICY
+from stig_audit_pro.core.models import DeviceStatus
 from stig_audit_pro.core.output_cache import CommandOutputCache
+from stig_audit_pro.infrastructure.ssh.host_keys import HostKeyTrustStore
 
+HOST_KEY_FAILURE_MESSAGES = {
+    DeviceStatus.HOST_KEY_UNKNOWN: (
+        "SSH host key is not stored. Verify the switch fingerprint independently "
+        "and enroll its public key before retrying."
+    ),
+    DeviceStatus.HOST_KEY_CHANGED: (
+        "SSH host key has changed. Verify the new fingerprint independently "
+        "before updating the stored key."
+    ),
+}
 
 @dataclass(slots=True)
 class DeviceTarget:
@@ -30,19 +42,23 @@ class DeviceCommandRun:
     status: str
     outputs: dict[str, str]
     error_message: str | None = None
+    failure_status: DeviceStatus | None = None
 
 
 class NetmikoSshRunner:
     """Run a safe command set against one IOS-XE device."""
 
-    def __init__(self, cache: CommandOutputCache | None = None) -> None:
+    def __init__(self, cache: CommandOutputCache | None = None, trust_store: HostKeyTrustStore | None = None) -> None:
         self.cache = cache
+        self.trust_store = trust_store or HostKeyTrustStore()
 
     def run_commands(
         self,
         target: DeviceTarget,
         credentials: DeviceCredentials,
         commands: list[str],
+        *,
+        verify_host_key: bool = True,
     ) -> DeviceCommandRun:
         # Policy validation intentionally happens before importing Netmiko or
         # attempting a connection.  Unsafe YAML/caller input therefore cannot
@@ -63,11 +79,10 @@ class NetmikoSshRunner:
             "timeout": target.timeout,
             "banner_timeout": target.timeout,
             "auth_timeout": target.timeout,
-            # Temporary Basic-mode compatibility setting.  Host-key
-            # verification is disabled until the operator workflow is
-            # redesigned to make enrollment easier and auditable.
-            "ssh_strict": False,
+            "ssh_strict": bool(verify_host_key),
             "system_host_keys": False,
+            "alt_host_keys": bool(verify_host_key),
+            "alt_key_file": str(self.trust_store.path),
             "use_keys": False,
             "allow_agent": False,
         }

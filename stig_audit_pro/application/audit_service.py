@@ -71,6 +71,7 @@ class AuditService:
         cancel_event: threading.Event | None = None,
         event_queue: queue.Queue[ScanEvent] | None = None,
         evidence_sink: EvidenceSink | None = None,
+        verify_host_key: bool = True,
     ) -> AuditServiceResult:
         commands = plan_commands(checks, run_all=False)
 
@@ -83,11 +84,12 @@ class AuditService:
                 commands,
                 cancel_event=cancellation,
                 command_timeout=command_timeout,
+                verify_host_key=verify_host_key,
             )
             if command_run.status == "cancelled":
                 return DeviceScanOutcome(target.ip, DeviceStatus.CANCELLED)
             if command_run.status != "scanned":
-                status = _connection_failure_status(command_run.error_message or "")
+                status = command_run.failure_status or _connection_failure_status(command_run.error_message or "")
                 return DeviceScanOutcome(
                     target.ip, status, error_message=command_run.error_message
                 )

@@ -26,6 +26,7 @@ from stig_audit_pro.core.evidence import (
     EvidenceVerificationItem,
     EvidenceVerificationResult,
 )
+from stig_audit_pro.infrastructure.security.at_rest import AtRestVault, MAGIC
 
 if TYPE_CHECKING:
     from stig_audit_pro.infrastructure.persistence.repositories import AuditRunRepository
@@ -137,11 +138,13 @@ class EvidenceStore:
         self,
         root: str | Path | None = None,
         repository: "AuditRunRepository | None" = None,
+        vault: AtRestVault | None = None,
     ) -> None:
         self.root = (default_evidence_root() if root is None else Path(root)).expanduser()
         self.root.mkdir(parents=True, exist_ok=True)
         self.root = self.root.resolve()
         self.repository = repository
+        self.vault = vault
         self._lock = threading.RLock()
 
     def run_path(self, run_id: str | UUID) -> Path:
@@ -265,9 +268,9 @@ class EvidenceStore:
             while destination.exists():
                 destination = evidence_dir / f"{base_name}-{sequence}.txt"
                 sequence += 1
-            self._atomic_write_new(destination, encoded)
-
             relative_path = destination.relative_to(self.root).as_posix()
+            self._atomic_write_new(destination, self._encode_payload(encoded, relative_path))
+
             artifact = EvidenceArtifact(
                 run_id=canonical,
                 run_device_id=run_device_id,
@@ -400,7 +403,7 @@ class EvidenceStore:
 
     def read_evidence(self, relative_path: str | Path) -> str:
         path = self._safe_artifact_path(str(relative_path))
-        return path.read_text(encoding="utf-8")
+        return self._decode_payload(path.read_bytes(), str(relative_path)).decode("utf-8")
 
     def purge_raw_evidence(self, run_id: str | UUID) -> int:
         """Delete only raw outputs, retaining manifests, hashes, and results."""
@@ -496,7 +499,9 @@ class EvidenceStore:
                 status=EvidenceIntegrityStatus.MISSING,
             )
         try:
-            actual = hashlib.sha256(path.read_bytes()).hexdigest()
+            actual = hashlib.sha256(
+                self._decode_payload(path.read_bytes(), relative_path)
+            ).hexdigest()
         except OSError as exc:
             return EvidenceVerificationItem(
                 artifact_id=artifact_id,
@@ -549,6 +554,22 @@ class EvidenceStore:
             json.dumps(_json_value(value), indent=2, sort_keys=True, ensure_ascii=False)
             + "\n"
         ).encode("utf-8")
+
+    def _encode_payload(self, data: bytes, relative_path: str) -> bytes:
+        if self.vault is None:
+            return data
+        return self.vault.encrypt(data, self._association(relative_path))
+
+    def _decode_payload(self, data: bytes, relative_path: str) -> bytes:
+        if not data.startswith(MAGIC):
+            return data
+        if self.vault is None:
+            raise EvidenceStoreError("Evidence is encrypted; unlock the audit vault first")
+        return self.vault.decrypt(data, self._association(relative_path))
+
+    @staticmethod
+    def _association(relative_path: str) -> str:
+        return "evidence/" + Path(relative_path).as_posix()
 
     def _write_snapshot(self, path: Path, content: Any) -> None:
         if isinstance(content, bytes):

@@ -1,5 +1,9 @@
 # Basic security update — 9 October 2026
 
+The current staged integrity work, evidence-store encryption API, strict SSH
+host-key behavior, and known limitations are tracked in
+[`SECURITY_AND_AUDIT_INTEGRITY.md`](SECURITY_AND_AUDIT_INTEGRITY.md).
+
 This guide applies to **STIG Audit Basic for IOS and IOS XE**, including its
 free single-device mode and signed-license batches. The executable in this
 folder is the Basic app. It does not launch the Pro interface.

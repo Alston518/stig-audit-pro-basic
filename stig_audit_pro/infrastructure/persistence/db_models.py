@@ -118,6 +118,14 @@ class CheckResult(Base):
     title: Mapped[str | None] = mapped_column(Text)
     severity: Mapped[str] = mapped_column(String(32), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
+    decision_state: Mapped[str | None] = mapped_column(String(32))
+    automated_status: Mapped[str | None] = mapped_column(String(32))
+    automated_finding_details: Mapped[str | None] = mapped_column(Text)
+    automated_comments: Mapped[str | None] = mapped_column(Text)
+    automated_evaluation_reason: Mapped[str | None] = mapped_column(Text)
+    review_status: Mapped[str | None] = mapped_column(String(32))
+    review_justification: Mapped[str | None] = mapped_column(Text)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     finding_details: Mapped[str | None] = mapped_column(Text)
     comments: Mapped[str | None] = mapped_column(Text)
     evaluation_reason: Mapped[str | None] = mapped_column(Text)
@@ -299,6 +307,8 @@ class ActivityLog(Base):
     object_id: Mapped[str | None] = mapped_column(String(255))
     details: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
     local_username: Mapped[str | None] = mapped_column(String(255))
+    previous_hash: Mapped[str | None] = mapped_column(String(64))
+    event_hash: Mapped[str] = mapped_column(String(64), nullable=False, default="")
 
 
 # Explicit aliases make it clear at call sites when an ORM record is intended,
