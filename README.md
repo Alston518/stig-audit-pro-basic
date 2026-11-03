@@ -39,6 +39,18 @@ for the security boundary, reviewer checks, and known limitations.
 
 Use **Profiles & Sites** to create a standalone profile for each building and a reusable device group. For a new deployment, download the master inventory template, fill in the building and device rows, and import it to create all building groups at once. Choose the saved building on the Audit tab to load its device inventory and profile without editing YAML. See [`docs/12_Site_Setup_Workflow.md`](docs/12_Site_Setup_Workflow.md).
 
+## Reviewing protected reports
+
+On the **Results** tab, choose **Import protected reports** and select one,
+several, or all `.sapenc` files from an audit batch. The Device/IP and Report
+type selectors let you switch between each device's TXT and CKL results. Only
+the active report is verified and decrypted for the in-memory preview.
+
+Choose **Export readable reports** to select one, some, or all imported
+reports. The app asks for a destination folder and requires one explicit
+confirmation before creating unencrypted copies. Batch export processes one
+report at a time and never replaces an existing readable file.
+
 ## Run from source
 
 Requirements: Windows, Python 3.12, and the packages in `requirements.txt`.

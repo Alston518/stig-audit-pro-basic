@@ -72,12 +72,12 @@
 - Consumes: `ProtectedReportWorkspace`, `export_readable_batch`, and existing `ProtectedArtifactStore.read/export`.
 - Produces: multi-select import, Device/IP and report-type selectors, clear workspace action, export-selection dialog, and batch completion messaging.
 
-- [ ] **Step 1: Write failing tests** for `askopenfilenames`, Protected Output defaulting, lazy selected-only preview, workspace clearing, one confirmation per batch, and chosen-report export.
-- [ ] **Step 2: Run the focused UI tests** and verify failures reflect the missing feature.
-- [ ] **Step 3: Implement** the Results controls and callbacks, keeping `_display_protected_report()` compatible with latest-report navigation.
-- [ ] **Step 4: Update** operator documentation for batch import, IP/type switching, and readable batch export.
-- [ ] **Step 5: Run** the new focused tests plus existing artifact/output tests and verify they pass.
-- [ ] **Step 6: Commit** the UI, documentation, and tests.
+- [x] **Step 1: Write failing tests** for `askopenfilenames`, Protected Output defaulting, lazy selected-only preview, workspace clearing, one confirmation per batch, and chosen-report export.
+- [x] **Step 2: Run the focused UI tests** and verify failures reflect the missing feature.
+- [x] **Step 3: Implement** the Results controls and callbacks, keeping `_display_protected_report()` compatible with latest-report navigation.
+- [x] **Step 4: Update** operator documentation for batch import, IP/type switching, and readable batch export.
+- [x] **Step 5: Run** the new focused tests plus existing artifact/output tests and verify they pass.
+- [x] **Step 6: Commit** the UI, documentation, and tests.
 
 ### Task 4: Clean verification and Windows package
 

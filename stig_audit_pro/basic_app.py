@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from stig_audit_pro.application.audit_service import AuditService
 from stig_audit_pro.build_info import load_build_metadata
 from stig_audit_pro.gui.basic_host_keys import HostKeyRequest, ManageHostKeysDialog, TrustHostKeyDialog
+from stig_audit_pro.gui.protected_reports import ProtectedReportWorkspace, export_readable_batch
 from stig_audit_pro.core.ssh_runner import HOST_KEY_FAILURE_MESSAGES, DeviceCredentials
 from stig_audit_pro.core.yaml_loader import ConfigValidationError, load_check_library, load_profile
 from stig_audit_pro.reports.audit_report import build_text_report
@@ -233,6 +234,7 @@ class BasicApp:
         self.events, self.cancel_event, self.thread = queue.Queue(), threading.Event(), None
         self.last_results,self.last_targets,self.last_families,self.last_run_id=[],[],[],''
         self.last_report_paths, self.last_output_dir = [], None
+        self.report_workspace = ProtectedReportWorkspace()
         self.license_policy = BasicLicensePolicy()
         self.artifacts = ProtectedArtifactStore(vault)
         self.build_metadata = load_build_metadata()
@@ -328,12 +330,31 @@ class BasicApp:
                      text_color=colors["muted"]).pack(anchor="w", padx=16)
         protected_row = ctk.CTkFrame(result, fg_color=colors["card"], corner_radius=10)
         protected_row.pack(fill="x", padx=12, pady=(12, 0))
-        ctk.CTkButton(protected_row, text="Import protected report", command=self.import_protected_report,
+        ctk.CTkButton(protected_row, text="Import protected reports", command=self.import_protected_report,
                       fg_color=colors["blue"]).pack(side="left", padx=8, pady=8)
         ctk.CTkButton(protected_row, text="Open protected report folder", command=self.open_protected_report,
                       fg_color=colors["blue"]).pack(side="left", padx=8, pady=8)
-        ctk.CTkButton(protected_row, text="Export readable copy", command=self.export_protected_report,
+        ctk.CTkButton(protected_row, text="Export readable reports", command=self.export_protected_report,
                       fg_color=colors["raised"], hover_color=colors["border"]).pack(side="left", padx=4, pady=8)
+        ctk.CTkButton(protected_row, text="Clear imported", command=self.clear_protected_reports,
+                      fg_color=colors["raised"], hover_color=colors["border"]).pack(side="left", padx=4, pady=8)
+        self.report_count_label = ctk.CTkLabel(protected_row, text="0 reports imported", text_color=colors["muted"])
+        self.report_count_label.pack(side="right", padx=10)
+
+        report_selector_row = ctk.CTkFrame(result, fg_color=colors["card"], corner_radius=10)
+        report_selector_row.pack(fill="x", padx=12, pady=(8, 0))
+        ctk.CTkLabel(report_selector_row, text="Device / IP", text_color=colors["muted"]).pack(side="left", padx=(10, 4), pady=8)
+        self.report_device_menu = ctk.CTkOptionMenu(
+            report_selector_row, values=["No reports imported"], command=self._on_report_device_change,
+            state="disabled", width=240,
+        )
+        self.report_device_menu.pack(side="left", padx=4, pady=8)
+        ctk.CTkLabel(report_selector_row, text="Report type", text_color=colors["muted"]).pack(side="left", padx=(14, 4), pady=8)
+        self.report_type_menu = ctk.CTkOptionMenu(
+            report_selector_row, values=["—"], command=lambda _value: self._display_selected_report(),
+            state="disabled", width=300,
+        )
+        self.report_type_menu.pack(side="left", padx=4, pady=8)
         self.results_box = ctk.CTkTextbox(result, fg_color=colors["card"], text_color=colors["text"])
         self.results_box.pack(fill="both", expand=True, padx=12, pady=12)
 
@@ -343,7 +364,7 @@ class BasicApp:
             "3. For Live SSH, confirm the device address, port, and account before starting.\n"
             "4. Choose a matching blank CKL template if you want checklist output.\n"
             "5. Start the audit. The run card shows the encrypted file count and exact output folder.\n"
-            "6. Import a protected report in Results to read it in memory, or explicitly export an unencrypted copy.\n\n"
+            "6. Import one or more protected reports in Results, choose the device/IP and TXT or CKL type, then explicitly export selected readable copies.\n\n"
             "Live SSH verifies device host keys by default. You may disable verification for a controlled compatibility test, but that removes protection against connecting to an impersonated device. Audit and summary files use .sapenc.\n"
             "For a new switch, review its fingerprint and choose Trust and Save or Cancel. Use Manage SSH host keys in Audit Setup to view or remove saved keys. A changed key blocks the audit.\n"
             "Credentials and the audit-data passphrase are not saved by the app; SSH credentials remain in memory during a live run.\n"
@@ -676,6 +697,55 @@ class BasicApp:
             folder = Path(raw_folder).expanduser() if raw_folder else None
         return Path(folder) if folder is not None else None
 
+    def _ensure_report_workspace(self):
+        if not hasattr(self, 'report_workspace'):
+            self.report_workspace = ProtectedReportWorkspace()
+        return self.report_workspace
+
+    def _refresh_report_selectors(self, select_path=None):
+        workspace = self._ensure_report_workspace()
+        reports = workspace.reports()
+        devices = workspace.devices()
+        if hasattr(self, 'report_count_label'):
+            noun = 'report' if len(reports) == 1 else 'reports'
+            self.report_count_label.configure(text=f'{len(reports)} {noun} imported')
+        if not hasattr(self, 'report_device_menu') or not hasattr(self, 'report_type_menu'):
+            return
+        if not devices:
+            self.report_device_menu.configure(values=['No reports imported'], state='disabled')
+            self.report_device_menu.set('No reports imported')
+            self.report_type_menu.configure(values=['—'], state='disabled')
+            self.report_type_menu.set('—')
+            return
+
+        selected_report = None
+        if select_path is not None:
+            wanted = Path(select_path).expanduser().resolve()
+            selected_report = next((report for report in reports if report.path == wanted), None)
+        current_device = selected_report.device if selected_report else self.report_device_menu.get()
+        if current_device not in devices:
+            current_device = devices[0]
+        self.report_device_menu.configure(values=list(devices), state='normal')
+        self.report_device_menu.set(current_device)
+        options = workspace.type_options(current_device)
+        self.report_type_menu.configure(values=list(options), state='normal')
+        chosen = options[0]
+        if selected_report:
+            chosen = next(
+                (option for option in options if workspace.resolve(current_device, option).path == selected_report.path),
+                chosen,
+            )
+        self.report_type_menu.set(chosen)
+
+    def _on_report_device_change(self, device):
+        workspace = self._ensure_report_workspace()
+        options = workspace.type_options(device)
+        if not options:
+            return
+        self.report_type_menu.configure(values=list(options), state='normal')
+        self.report_type_menu.set(options[0])
+        self._display_selected_report()
+
     def import_protected_report(self):
         folder = self._report_folder()
         options = {
@@ -684,9 +754,36 @@ class BasicApp:
         }
         if folder is not None:
             options['initialdir'] = str(folder)
-        selected = self.filedialog.askopenfilename(**options)
-        if selected:
-            self._display_protected_report(selected)
+        selected = self.filedialog.askopenfilenames(**options)
+        if not selected:
+            return
+        batch = self._ensure_report_workspace().add(selected)
+        self._refresh_report_selectors(select_path=selected[0])
+        if batch.rejected:
+            details = '\n'.join(f'{path.name}: {reason}' for path, reason in batch.rejected[:5])
+            extra = len(batch.rejected) - 5
+            if extra > 0:
+                details += f'\n...and {extra} more'
+            self.messagebox.showwarning('Some reports were not imported', details)
+        if batch.added or self.report_workspace.reports():
+            self._display_selected_report()
+
+    def _display_selected_report(self):
+        workspace = self._ensure_report_workspace()
+        if not workspace.reports() or not hasattr(self, 'report_device_menu'):
+            return
+        try:
+            report = workspace.resolve(self.report_device_menu.get(), self.report_type_menu.get())
+        except KeyError:
+            return
+        self._display_protected_report(report.path)
+
+    def clear_protected_reports(self):
+        self._ensure_report_workspace().clear()
+        if hasattr(self, 'results_box'):
+            self.results_box.delete('1.0', 'end')
+            self.results_box.insert('end', 'Import protected reports to view verified text in memory.')
+        self._refresh_report_selectors()
 
     def _display_protected_report(self, selected):
         try:
@@ -704,10 +801,15 @@ class BasicApp:
     def view_latest_protected_report(self):
         for path in reversed(self.last_report_paths):
             if Path(path).is_file() and '.txt.sapenc' in Path(path).name.lower():
-                self._display_protected_report(path)
+                self._ensure_report_workspace().add([path])
+                self._refresh_report_selectors(select_path=path)
+                self._display_selected_report()
                 return
         if self.last_report_paths:
-            self._display_protected_report(self.last_report_paths[-1])
+            path = self.last_report_paths[-1]
+            self._ensure_report_workspace().add([path])
+            self._refresh_report_selectors(select_path=path)
+            self._display_selected_report()
         else:
             self.messagebox.showinfo('No report yet', 'This run did not create a protected report.')
 
@@ -720,28 +822,99 @@ class BasicApp:
             os.startfile(str(folder))
         except OSError as exc:
             self.messagebox.showerror('Could not open output folder', f'{type(exc).__name__}: {folder}')
+    def _choose_reports_for_export(self, reports):
+        reports = tuple(reports)
+        if len(reports) <= 1:
+            return reports
+        from tkinter import BooleanVar
+        dialog = self.ctk.CTkToplevel(self.root)
+        dialog.title('Select protected reports to export')
+        dialog.geometry('760x560')
+        dialog.transient(self.root)
+        dialog.grab_set()
+        self.ctk.CTkLabel(
+            dialog, text='Choose one, some, or all imported reports',
+            font=self.ctk.CTkFont(size=17, weight='bold'),
+        ).pack(anchor='w', padx=16, pady=(16, 4))
+        self.ctk.CTkLabel(
+            dialog, text='Readable copies will be created only after you confirm the security warning.',
+            text_color=self.colors['muted'],
+        ).pack(anchor='w', padx=16, pady=(0, 8))
+        list_frame = self.ctk.CTkScrollableFrame(dialog, fg_color=self.colors['card'])
+        list_frame.pack(fill='both', expand=True, padx=16, pady=8)
+        variables = []
+        for report in reports:
+            variable = BooleanVar(value=True)
+            variables.append(variable)
+            self.ctk.CTkCheckBox(
+                list_frame,
+                text=f'{report.device}  •  {report.report_type}  •  {report.original_name}',
+                variable=variable,
+            ).pack(anchor='w', fill='x', padx=8, pady=5)
+        selected = []
+
+        def set_all(value):
+            for variable in variables:
+                variable.set(value)
+
+        def apply_selection():
+            chosen = [report for report, variable in zip(reports, variables) if variable.get()]
+            if not chosen:
+                self.messagebox.showinfo('Select reports', 'Select at least one protected report to export.')
+                return
+            selected.extend(chosen)
+            dialog.destroy()
+
+        actions = self.ctk.CTkFrame(dialog, fg_color='transparent')
+        actions.pack(fill='x', padx=12, pady=(0, 12))
+        self.ctk.CTkButton(actions, text='Select all', command=lambda: set_all(True)).pack(side='left', padx=4)
+        self.ctk.CTkButton(actions, text='Clear selection', command=lambda: set_all(False)).pack(side='left', padx=4)
+        self.ctk.CTkButton(actions, text='Cancel', command=dialog.destroy).pack(side='right', padx=4)
+        self.ctk.CTkButton(actions, text='Export selected', command=apply_selection,
+                           fg_color=self.colors['blue']).pack(side='right', padx=4)
+        self.root.wait_window(dialog)
+        return tuple(selected)
+
     def export_protected_report(self):
+        workspace = self._ensure_report_workspace()
         folder = self._report_folder()
-        options = {'title': 'Select protected Basic report', 'filetypes': [('Protected Basic report', '*.sapenc')]}
+        if not workspace.reports():
+            options = {'title': 'Select protected Basic reports', 'filetypes': [('Protected Basic report', '*.sapenc')]}
+            if folder is not None:
+                options['initialdir'] = str(folder)
+            selected_paths = self.filedialog.askopenfilenames(**options)
+            if not selected_paths:
+                return
+            batch = workspace.add(selected_paths)
+            self._refresh_report_selectors(select_path=selected_paths[0])
+            if batch.rejected:
+                details = '\n'.join(f'{path.name}: {reason}' for path, reason in batch.rejected[:5])
+                self.messagebox.showwarning('Some reports were not selected', details)
+        selected_reports = self._choose_reports_for_export(workspace.reports())
+        if not selected_reports:
+            return
+        directory_options = {'title': 'Choose folder for readable reports'}
         if folder is not None:
-            options['initialdir'] = str(folder)
-        selected=self.filedialog.askopenfilename(**options)
-        if not selected:return
-        original_name=Path(selected).stem
-        default_folder = self._report_folder()
-        save_options = {
-            'title': 'Export readable copy',
-            'initialfile': original_name,
-            'defaultextension': Path(original_name).suffix,
-        }
-        if default_folder is not None:
-            save_options['initialdir'] = str(default_folder)
-        destination=self.filedialog.asksaveasfilename(**save_options)
-        if not destination:return
-        if not self.messagebox.askyesno('Export readable report','This creates an unencrypted file that other applications can read. Continue?'):return
-        try:self.artifacts.export(selected,destination)
-        except (OSError,ValueError) as exc:self.messagebox.showerror('Export failed',str(exc));return
-        self.messagebox.showinfo('Readable copy exported',destination)
+            directory_options['initialdir'] = str(folder)
+        destination = self.filedialog.askdirectory(**directory_options)
+        if not destination:
+            return
+        count = len(selected_reports)
+        if not self.messagebox.askyesno(
+            'Export readable reports',
+            f'This creates {count} unencrypted file(s) that other applications can read. Continue?',
+        ):
+            return
+        result = export_readable_batch(self.artifacts, selected_reports, destination)
+        message = f'{len(result.exported)} readable report(s) exported to {destination}.'
+        if result.failed:
+            failures = '\n'.join(f'{report.original_name}: {reason}' for report, reason in result.failed[:5])
+            extra = len(result.failed) - 5
+            if extra > 0:
+                failures += f'\n...and {extra} more'
+            self.messagebox.showwarning('Readable export partially completed', f'{message}\n\nNot exported:\n{failures}')
+        else:
+            self.messagebox.showinfo('Readable reports exported', message)
     def on_platform_change(self, platform):
         self.profile.set(default_profile_name(platform))
         self.template_tabs.set(platform)

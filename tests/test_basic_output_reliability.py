@@ -399,47 +399,115 @@ def test_summary_export_reports_partial_protected_files(monkeypatch, tmp_path):
     assert str(paths[0]) in errors[0][1]
     assert "PRIVATE" not in errors[0][1]
 
-def test_export_readable_copy_defaults_to_protected_output_folder(monkeypatch, tmp_path):
-    from stig_audit_pro import basic_app
+def _protected_name(ip, report_type, run="95895e0c"):
+    dashed = ip.replace(".", "-")
+    last = ip.rsplit(".", 1)[-1]
+    return f"{last}_IOSXE_NDM_03NOV2026_{dashed}-bc6a86bfe394_{run}.{report_type}.sapenc"
 
-    app = basic_app.BasicApp.__new__(basic_app.BasicApp)
-    protected = tmp_path / "reports" / "finding.txt.sapenc"
-    protected.parent.mkdir()
-    protected.write_bytes(b"encrypted")
-    app.last_output_dir = protected.parent
-    calls = {}
-    app.filedialog = SimpleNamespace(
-        askopenfilename=lambda **_kwargs: str(protected),
-        asksaveasfilename=lambda **kwargs: calls.update(kwargs) or str(tmp_path / "exported.txt"),
-    )
-    app.messagebox = SimpleNamespace(
-        askyesno=lambda *_args: True,
-        showinfo=lambda *_args: None,
-        showerror=lambda *_args: None,
-    )
-    app.artifacts = SimpleNamespace(export=lambda *_args: None)
 
-    app.export_protected_report()
-
-    assert calls["initialdir"] == str(protected.parent)
-
-def test_import_protected_report_defaults_to_output_folder_and_displays(monkeypatch, tmp_path):
-    from stig_audit_pro import basic_app
+def test_import_protected_reports_defaults_to_output_folder_and_accepts_many(tmp_path):
+    from stig_audit_pro.gui.protected_reports import ProtectedReportWorkspace
 
     output = tmp_path / "reports"
     output.mkdir()
-    protected = output / "finding.txt.sapenc"
-    protected.write_bytes(b"encrypted")
+    first = output / _protected_name("172.16.100.156", "txt")
+    second = output / _protected_name("172.16.100.157", "ckl")
     app = basic_app.BasicApp.__new__(basic_app.BasicApp)
     app.last_output_dir = output
+    app.report_workspace = ProtectedReportWorkspace()
     calls = {}
     app.filedialog = SimpleNamespace(
-        askopenfilename=lambda **kwargs: calls.update(kwargs) or str(protected),
+        askopenfilenames=lambda **kwargs: calls.update(kwargs) or (str(first), str(second)),
     )
+    app.messagebox = SimpleNamespace(showwarning=lambda *_args: None)
+    refreshed = []
     displayed = []
-    app._display_protected_report = lambda selected: displayed.append(selected)
+    app._refresh_report_selectors = lambda **_kwargs: refreshed.append(True)
+    app._display_selected_report = lambda: displayed.append(True)
 
     app.import_protected_report()
 
     assert calls["initialdir"] == str(output)
-    assert displayed == [str(protected)]
+    assert [report.path for report in app.report_workspace.reports()] == [first.resolve(), second.resolve()]
+    assert refreshed == [True]
+    assert displayed == [True]
+
+
+def test_selected_report_preview_decrypts_only_the_active_report(tmp_path):
+    from stig_audit_pro.gui.protected_reports import ProtectedReportWorkspace
+
+    first = tmp_path / _protected_name("172.16.100.156", "txt")
+    second = tmp_path / _protected_name("172.16.100.157", "txt")
+    app = basic_app.BasicApp.__new__(basic_app.BasicApp)
+    app.report_workspace = ProtectedReportWorkspace()
+    app.report_workspace.add([first, second])
+    app.report_device_menu = SimpleNamespace(get=lambda: "172.16.100.157")
+    app.report_type_menu = SimpleNamespace(get=lambda: "TXT")
+    displayed = []
+    app._display_protected_report = lambda path: displayed.append(Path(path))
+
+    app._display_selected_report()
+
+    assert displayed == [second.resolve()]
+
+
+def test_clear_imported_reports_removes_paths_and_plaintext_preview(tmp_path):
+    from stig_audit_pro.gui.protected_reports import ProtectedReportWorkspace
+
+    app = basic_app.BasicApp.__new__(basic_app.BasicApp)
+    app.report_workspace = ProtectedReportWorkspace()
+    app.report_workspace.add([tmp_path / "legacy.txt.sapenc"])
+    calls = []
+    app.results_box = SimpleNamespace(
+        delete=lambda *args: calls.append(("delete", args)),
+        insert=lambda *args: calls.append(("insert", args)),
+    )
+    app._refresh_report_selectors = lambda: calls.append(("refresh", ()))
+
+    app.clear_protected_reports()
+
+    assert app.report_workspace.reports() == ()
+    assert calls[0][0] == "delete"
+    assert calls[1][0] == "insert"
+    assert "Import protected reports" in calls[1][1][1]
+    assert calls[2][0] == "refresh"
+
+
+def test_batch_export_uses_selected_imports_defaults_to_output_and_confirms_once(tmp_path):
+    from stig_audit_pro.gui.protected_reports import ProtectedReportWorkspace
+
+    output = tmp_path / "reports"
+    output.mkdir()
+    first = output / _protected_name("172.16.100.156", "txt")
+    second = output / _protected_name("172.16.100.157", "txt")
+    third = output / _protected_name("172.16.100.158", "ckl")
+    app = basic_app.BasicApp.__new__(basic_app.BasicApp)
+    app.last_output_dir = output
+    app.report_workspace = ProtectedReportWorkspace()
+    app.report_workspace.add([first, second, third])
+    selected = (app.report_workspace.reports()[0], app.report_workspace.reports()[2])
+    app._choose_reports_for_export = lambda reports: selected
+    calls = {}
+    destination = tmp_path / "readable"
+    app.filedialog = SimpleNamespace(askdirectory=lambda **kwargs: calls.update(kwargs) or str(destination))
+    confirmations = []
+    messages = []
+    app.messagebox = SimpleNamespace(
+        askyesno=lambda *args: confirmations.append(args) or True,
+        showinfo=lambda *args: messages.append(args),
+        showwarning=lambda *args: messages.append(args),
+    )
+
+    class Store:
+        def export(self, _protected, clear):
+            Path(clear).write_bytes(b"readable")
+
+    app.artifacts = Store()
+
+    app.export_protected_report()
+
+    assert calls["initialdir"] == str(output)
+    assert len(confirmations) == 1
+    assert len(list(destination.iterdir())) == 2
+    assert {path.name for path in destination.iterdir()} == {first.stem, third.stem}
+    assert "2 readable report" in messages[-1][1]
