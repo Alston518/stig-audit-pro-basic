@@ -26,9 +26,9 @@ The current Basic GUI report flow still writes its protected report artifacts di
 
 ## SSH host keys
 
-Both Netmiko runners set strict host-key verification and load an operator-managed OpenSSH known-hosts file. Unknown or changed keys are rejected by Paramiko before authentication. The enrollment service can discover a server key before credentials are sent, requires an independent verification note and operator identity, and stores the public key with a restrictive local file mode where the platform supports it.
+Live SSH verifies host keys by default. Paramiko rejects unknown or changed keys before authentication. On first connection, Basic discovers the public key without authenticating and shows its SHA256 fingerprint. Enter the matching fingerprint from an independent trusted source, record the verification source, and select **Trust and Save**. Basic records the Windows operator identity, saves the key in its local OpenSSH trust store, and retries the audit with verification enabled. Cancel skips that device.
 
-Host-key enrollment is deliberately explicit. Do not bypass it by changing `ssh_strict` or enabling automatic host-key acceptance.
+Use **Audit Setup → Manage SSH host keys** to review fingerprints or remove a host's stored keys. Removal requires confirmation and is recorded alongside enrollment history. A changed key blocks the audit. If an approved rotation is confirmed independently, remove the old entry and run the audit again to verify and enroll the replacement.
 
 ## Activity log chain
 
@@ -42,7 +42,6 @@ The next tested increments are:
 
 1. Wire the Basic GUI scan path to `RunService` using the unlocked vault and add history/detail/re-export views.
 2. Add canonical package signatures with an operator-provisioned signing key or certificate; never embed a private key.
-3. Add host-key enrollment and rotation controls to the Basic GUI.
-4. Add retention, recovery, and encrypted-database migration procedures.
+3. Add retention, recovery, and encrypted-database migration procedures.
 
 The project does not claim these follow-on capabilities until their tests and documentation are present.

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import threading
 from collections.abc import Callable
+from dataclasses import dataclass
 
 from stig_audit_pro.core.command_policy import DEFAULT_COMMAND_POLICY
 from stig_audit_pro.core.models import DeviceStatus
@@ -14,6 +15,17 @@ from stig_audit_pro.core.ssh_runner import (
     DeviceTarget,
 )
 from stig_audit_pro.infrastructure.ssh.host_keys import HostKeyTrustStore
+
+
+@dataclass(frozen=True, slots=True)
+class DiscoveredHostKey:
+    algorithm: str
+    fingerprint: str
+
+
+HostKeyApproval = Callable[
+    [DeviceTarget, DiscoveredHostKey, threading.Event], tuple[str, str] | None
+]
 
 
 def _host_key_failure(exc: Exception, target: DeviceTarget) -> DeviceStatus | None:
@@ -41,8 +53,12 @@ class NetmikoRunner:
     The connection object itself never crosses a worker boundary.
     """
 
-    def __init__(self, trust_store: HostKeyTrustStore | None = None) -> None:
+    def __init__(
+        self, trust_store: HostKeyTrustStore | None = None, *,
+        approve_unknown: HostKeyApproval | None = None,
+    ) -> None:
         self.trust_store = trust_store or HostKeyTrustStore()
+        self.approve_unknown = approve_unknown
 
     def run_commands(
         self,
@@ -60,6 +76,7 @@ class NetmikoRunner:
         cancellation = cancel_event or threading.Event()
         try:
             from netmiko import ConnectHandler  # type: ignore
+            from paramiko import SSHException
         except ImportError as exc:
             raise RuntimeError("netmiko is required for live SSH scans") from exc
 
@@ -82,9 +99,58 @@ class NetmikoRunner:
         if credentials.secret:
             params["secret"] = credentials.secret
 
+        def collect() -> DeviceCommandRun:
+            return self._collect(
+                ConnectHandler, params, target, credentials, approved, pagination,
+                cancellation, command_timeout, on_command, verify_host_key,
+            )
+
+        first = collect()
+        if first.failure_status != DeviceStatus.HOST_KEY_UNKNOWN or self.approve_unknown is None:
+            return first
+        if cancellation.is_set():
+            return DeviceCommandRun(target.ip, "cancelled", {})
+        try:
+            algorithm, public_key, fingerprint = self.trust_store.discover(
+                target.ip, target.port, min(target.timeout, 10),
+            )
+        except (OSError, EOFError, SSHException):
+            return first
+
+        approval = self.approve_unknown(
+            target, DiscoveredHostKey(algorithm, fingerprint), cancellation,
+        )
+        if cancellation.is_set():
+            return DeviceCommandRun(target.ip, "cancelled", {})
+        if approval is None:
+            return first
+        note, operator = approval
+        try:
+            self.trust_store.enroll(
+                target.ip, target.port, algorithm, public_key,
+                verification_note=note, operator=operator, replace=False,
+            )
+        except ValueError:
+            failure = DeviceStatus.HOST_KEY_CHANGED
+            return DeviceCommandRun(
+                target.ip, "skipped", {}, HOST_KEY_FAILURE_MESSAGES[failure], failure_status=failure,
+            )
+        except OSError:
+            return first
+        if cancellation.is_set():
+            return DeviceCommandRun(target.ip, "cancelled", {})
+        # Reload the saved trust store and verify the key on the actual
+        # connection. A key that changes after approval is still rejected.
+        return collect()
+
+    @staticmethod
+    def _collect(
+        connect, params, target, credentials, approved, pagination,
+        cancellation, command_timeout, on_command, verify_host_key,
+    ) -> DeviceCommandRun:
         outputs: dict[str, str] = {}
         try:
-            with ConnectHandler(**params) as connection:
+            with connect(**params) as connection:
                 if credentials.secret:
                     connection.enable()
                 if pagination not in approved and not cancellation.is_set():

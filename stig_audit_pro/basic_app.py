@@ -6,6 +6,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from stig_audit_pro.application.audit_service import AuditService
 from stig_audit_pro.build_info import load_build_metadata
+from stig_audit_pro.gui.basic_host_keys import HostKeyRequest, ManageHostKeysDialog, TrustHostKeyDialog
 from stig_audit_pro.core.ssh_runner import HOST_KEY_FAILURE_MESSAGES, DeviceCredentials
 from stig_audit_pro.core.yaml_loader import ConfigValidationError, load_check_library, load_profile
 from stig_audit_pro.reports.audit_report import build_text_report
@@ -17,6 +18,8 @@ from stig_audit_pro.licensing import LicenseImportError, LicensePolicyError
 from stig_audit_pro.licensing.basic_policy import BasicLicensePolicy, normalize_basic_targets
 from stig_audit_pro.infrastructure.security.at_rest import AtRestVault, VaultUnlockError
 from stig_audit_pro.infrastructure.security.basic_artifacts import ProtectedArtifactStore, default_vault_path
+from stig_audit_pro.infrastructure.ssh.host_keys import HostKeyTrustStore
+from stig_audit_pro.infrastructure.ssh.netmiko_runner import NetmikoRunner
 
 COMMAND_FILES = {
     "show running-config":"show_running_config.txt", "show vtp status":"show_vtp_status.txt",
@@ -342,6 +345,7 @@ class BasicApp:
             "5. Start the audit. The run card shows the encrypted file count and exact output folder.\n"
             "6. Import a protected report in Results to read it in memory, or explicitly export an unencrypted copy.\n\n"
             "Live SSH verifies device host keys by default. You may disable verification for a controlled compatibility test, but that removes protection against connecting to an impersonated device. Audit and summary files use .sapenc.\n"
+            "For a new switch, enter its independently verified fingerprint in the trust prompt. Use Manage SSH host keys in Audit Setup to view or remove saved keys. A changed key blocks the audit.\n"
             "Credentials and the audit-data passphrase are not saved by the app; SSH credentials remain in memory during a live run.\n"
             "Editable checks and profiles are beside the application in data. Review starter checks against the approved benchmark."
         )
@@ -410,15 +414,21 @@ class BasicApp:
         self.secret = ctk.CTkEntry(cred, placeholder_text="Enable secret (optional)", show="•")
         self.secret.pack(side="left", fill="x", expand=True, padx=4)
         self.verify_host_keys = ctk.BooleanVar(value=True)
+        ssh_options = ctk.CTkFrame(setup_card, fg_color="transparent")
+        ssh_options.pack(fill="x", padx=16, pady=(0, 10))
         self.host_key_check = ctk.CTkCheckBox(
-            setup_card,
+            ssh_options,
             text="Verify SSH host keys (recommended)",
             variable=self.verify_host_keys,
             command=self.update_mode_badge,
             text_color=colors["text"],
             hover_color=colors["blue"],
         )
-        self.host_key_check.pack(anchor="w", padx=16, pady=(0, 10))
+        self.host_key_check.pack(side="left")
+        ctk.CTkButton(
+            ssh_options, text="Manage SSH host keys", command=self.manage_host_keys,
+            fg_color=colors["raised"], hover_color=colors["border"],
+        ).pack(side="left", padx=(12, 0))
 
         template_card = self._audit_card(audit, "03  BLANK CHECKLIST TEMPLATES", "Assign each platform its own approved CKL template.")
         self.template_tabs = ctk.CTkTabview(template_card, height=170, fg_color=colors["card"])
@@ -767,6 +777,25 @@ class BasicApp:
             self.cancel_event.set()
             self.status.configure(text='Cancellation requested; waiting for active device work.')
 
+    def manage_host_keys(self):
+        if self.thread and self.thread.is_alive():
+            self.messagebox.showinfo("Audit running", "Finish or cancel the audit before removing SSH host keys.", parent=self.root)
+            return
+        try:
+            ManageHostKeysDialog(self.root, HostKeyTrustStore())
+        except (OSError, ValueError):
+            self.messagebox.showerror("Could not open trusted keys", "Check access to the local SSH trust store.", parent=self.root)
+
+    def _request_host_key_approval(self, target, key, cancellation):
+        if cancellation.is_set():
+            return None
+        request = HostKeyRequest(target, key, cancellation)
+        self.events.put(request)
+        while not request.done.wait(0.1):
+            if cancellation.is_set():
+                return None
+        return request.approval
+
     def browse_output(self):
         p=self.filedialog.askdirectory()
         if p:
@@ -847,12 +876,14 @@ class BasicApp:
             creds = None
         self.thread = threading.Thread(
             target=self._run,
-            args=(targets,checks,profile,creds,families,mode,templates,make_txt,make_ckl,output_dir,bool(self.verify_host_keys.get())),
+            args=(targets,checks,profile,creds,families,mode,templates,make_txt,make_ckl,output_dir,
+                  bool(self.verify_host_keys.get()), self._request_host_key_approval),
             daemon=True,
         )
         self.thread.start()
         self.root.after(150,self.poll)
-    def _run(self,targets,checks,profile,creds,families,mode,templates,make_txt,make_ckl,output_dir,verify_host_key=True):
+    def _run(self,targets,checks,profile,creds,families,mode,templates,make_txt,make_ckl,output_dir,
+             verify_host_key=True,approve_unknown=None):
         written = []
         run_id = str(uuid.uuid4())
         stage = 'starting audit'
@@ -862,7 +893,12 @@ class BasicApp:
             stage = 'validating license'
             addresses=self.license_policy.validate((target.ip for target in targets),families,make_txt,make_ckl)
             targets=[DeviceTargetRecord(ip=ip) for ip in addresses]
-            service=AuditService(); kwargs=dict(run_id=run_id,targets=targets,checks=checks,profile_provider=lambda _:profile,event_queue=self.events,cancel_event=self.cancel_event)
+            if mode == "Live SSH" and verify_host_key and approve_unknown is not None:
+                trust_store = HostKeyTrustStore()
+                service = AuditService(runner_factory=lambda: NetmikoRunner(trust_store, approve_unknown=approve_unknown))
+            else:
+                service = AuditService()
+            kwargs=dict(run_id=run_id,targets=targets,checks=checks,profile_provider=lambda _:profile,event_queue=self.events,cancel_event=self.cancel_event)
             stage = 'collecting and evaluating devices'
             result=service.run_offline(output_loader=sample_outputs,**kwargs) if mode=="Sample outputs" else service.run_live(credentials=creds,verify_host_key=verify_host_key,**kwargs)
             # Export is a separate licensed operation; expiry or replacement may have occurred while collecting.
@@ -940,6 +976,13 @@ class BasicApp:
         try:
             while True:
                 e=self.events.get_nowait()
+                if isinstance(e, HostKeyRequest):
+                    try:
+                        if not e.cancellation.is_set():
+                            e.approval = TrustHostKeyDialog(self.root, e).result
+                    finally:
+                        e.done.set()
+                    continue
                 message = _scan_event_text(e) if hasattr(e, 'event_type') else e.message
                 if message:
                     self.status.configure(text=message.splitlines()[0])
