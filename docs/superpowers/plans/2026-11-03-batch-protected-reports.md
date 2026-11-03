@@ -89,10 +89,9 @@
 - Consumes: committed feature branch and `STIG Audit Basic.spec`.
 - Produces: clean tested EXE package with visible build identity and preserved shared validation profiles/device groups.
 
-- [ ] **Step 1: Create a clean Git snapshot** that excludes uncommitted profiles/backups.
-- [ ] **Step 2: Run** `py -3.12 -m pytest -q` in the clean snapshot and require zero failures.
-- [ ] **Step 3: Build** with `py -3.12 -m PyInstaller --noconfirm "STIG Audit Basic.spec"`.
-- [ ] **Step 4: Publish** the unpacked build with `Publish-ValidationBuild.ps1` and create the sanitized ZIP.
+- [x] **Step 1: Create a clean Git snapshot** that excludes uncommitted profiles/backups.
+- [x] **Step 2: Run** `py -3.12 -m pytest -q` in the clean snapshot and require zero failures.
+- [x] **Step 3: Build** with `py -3.12 -m PyInstaller --noconfirm "STIG Audit Basic.spec"`.
+- [x] **Step 4: Publish** the unpacked build with `Publish-ValidationBuild.ps1` and create the sanitized ZIP.
 - [ ] **Step 5: Launch** the published EXE and verify the Results tab opens with the new controls.
-- [ ] **Step 6: Record** the package path, test count, build identity, and manual checks in the validation documentation.
-
+- [x] **Step 6: Record** the package path, test count, build identity, and manual checks in the validation documentation.

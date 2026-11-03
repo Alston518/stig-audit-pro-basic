@@ -1,7 +1,7 @@
 # Batch Protected Reports Design
 
-**Date:** 2026-11-03  
-**Status:** Proposed  
+**Date:** 2026-11-03
+**Status:** Approved and implemented
 **Applies to:** STIG Audit Basic Results tab
 
 ## Intent
@@ -61,4 +61,3 @@ An eager approach that decrypted all imported reports was rejected because it wo
 - Batch export supports one, some, and all; asks for one confirmation; preserves extensions; and never overwrites existing readable files.
 - Partial export reports successes and failures accurately and leaves no partial readable file after a failed write.
 - Existing single-report preview/export tests continue to pass.
-
