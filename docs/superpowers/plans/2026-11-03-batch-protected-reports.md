@@ -55,11 +55,11 @@
 - Produces: `ExportBatch` and `export_readable_batch(store, reports, destination)`.
 - Consumes: `ProtectedArtifactStore.export(protected_path, destination)` and `ProtectedReportRef.original_name`.
 
-- [ ] **Step 1: Write failing tests** proving one-at-a-time export, extension/name preservation, partial success, corrupt-report isolation, and refusal to overwrite.
-- [ ] **Step 2: Run the focused tests** and verify the expected missing-interface failures.
-- [ ] **Step 3: Implement** sequential export with per-file results and no plaintext accumulation.
-- [ ] **Step 4: Run the focused tests** and verify they pass.
-- [ ] **Step 5: Commit** batch export and tests.
+- [x] **Step 1: Write failing tests** proving one-at-a-time export, extension/name preservation, partial success, corrupt-report isolation, and refusal to overwrite.
+- [x] **Step 2: Run the focused tests** and verify the expected missing-interface failures.
+- [x] **Step 3: Implement** sequential export with per-file results and no plaintext accumulation.
+- [x] **Step 4: Run the focused tests** and verify they pass.
+- [x] **Step 5: Commit** batch export and tests.
 
 ### Task 3: Results-tab integration
 

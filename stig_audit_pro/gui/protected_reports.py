@@ -32,6 +32,12 @@ class ImportBatch:
     rejected: tuple[tuple[Path, str], ...]
 
 
+@dataclass(frozen=True)
+class ExportBatch:
+    exported: tuple[Path, ...]
+    failed: tuple[tuple[ProtectedReportRef, str], ...]
+
+
 def _report_ref(raw_path: str | Path) -> ProtectedReportRef:
     path = Path(raw_path).expanduser().resolve()
     if path.suffix.casefold() != PROTECTED_SUFFIX:
@@ -118,3 +124,24 @@ class ProtectedReportWorkspace:
             if label == type_option:
                 return report
         raise KeyError(f"No imported {type_option} report for {device}")
+
+
+def export_readable_batch(store, reports: Iterable[ProtectedReportRef], destination: str | Path) -> ExportBatch:
+    """Export selected reports one at a time without replacing readable files."""
+
+    folder = Path(destination).expanduser().resolve()
+    folder.mkdir(parents=True, exist_ok=True)
+    exported: list[Path] = []
+    failed: list[tuple[ProtectedReportRef, str]] = []
+    for report in reports:
+        clear_path = folder / report.original_name
+        if clear_path.exists():
+            failed.append((report, f"Readable file already exists: {clear_path.name}"))
+            continue
+        try:
+            store.export(report.path, clear_path)
+        except (OSError, ValueError) as exc:
+            failed.append((report, str(exc)))
+            continue
+        exported.append(clear_path)
+    return ExportBatch(exported=tuple(exported), failed=tuple(failed))
