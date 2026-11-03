@@ -345,7 +345,7 @@ class BasicApp:
             "5. Start the audit. The run card shows the encrypted file count and exact output folder.\n"
             "6. Import a protected report in Results to read it in memory, or explicitly export an unencrypted copy.\n\n"
             "Live SSH verifies device host keys by default. You may disable verification for a controlled compatibility test, but that removes protection against connecting to an impersonated device. Audit and summary files use .sapenc.\n"
-            "For a new switch, enter its independently verified fingerprint in the trust prompt. Use Manage SSH host keys in Audit Setup to view or remove saved keys. A changed key blocks the audit.\n"
+            "For a new switch, review its fingerprint and choose Trust and Save or Cancel. Use Manage SSH host keys in Audit Setup to view or remove saved keys. A changed key blocks the audit.\n"
             "Credentials and the audit-data passphrase are not saved by the app; SSH credentials remain in memory during a live run.\n"
             "Editable checks and profiles are beside the application in data. Review starter checks against the approved benchmark."
         )

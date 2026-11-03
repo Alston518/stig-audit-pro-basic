@@ -26,7 +26,7 @@ The current Basic GUI report flow still writes its protected report artifacts di
 
 ## SSH host keys
 
-Live SSH verifies host keys by default. Paramiko rejects unknown or changed keys before authentication. On first connection, Basic discovers the public key without authenticating and shows its SHA256 fingerprint. Enter the matching fingerprint from an independent trusted source, record the verification source, and select **Trust and Save**. Basic records the Windows operator identity, saves the key in its local OpenSSH trust store, and retries the audit with verification enabled. Cancel skips that device.
+Live SSH verifies host keys by default. Paramiko rejects unknown or changed keys before authentication. On first connection, Basic discovers the public key without authenticating and shows its SHA256 fingerprint. Select **Trust and Save** to accept the key on first use. Compare the fingerprint with an independent trusted source when your policy requires identity verification. Basic records first-use acceptance and the Windows operator identity, saves the key in its local OpenSSH trust store, and retries the audit with verification enabled. Cancel skips that device.
 
 Use **Audit Setup → Manage SSH host keys** to review fingerprints or remove a host's stored keys. Removal requires confirmation and is recorded alongside enrollment history. A changed key blocks the audit. If an approved rotation is confirmed independently, remove the old entry and run the audit again to verify and enroll the replacement.
 

@@ -35,16 +35,12 @@ class TrustHostKeyDialog(simpledialog.Dialog):
         fingerprint.pack(fill="x", pady=(4, 10))
         ttk.Label(
             frame,
-            text="Enter the SHA256 fingerprint from an independently trusted source. "
-                 "If you cannot verify it, cancel to skip this switch.",
+            text="This switch has no saved SSH key. Trust and Save remembers this key "
+                 "and continues the audit. On a first connection, compare the fingerprint "
+                 "with a trusted source if you need to confirm the switch's identity.",
             wraplength=450,
         ).pack(anchor="w")
-        self.expected = ttk.Entry(frame, width=62)
-        self.expected.pack(fill="x", pady=(4, 8))
-        ttk.Label(frame, text="Verification source (for example, approved key inventory)").pack(anchor="w")
-        self.source = ttk.Entry(frame, width=62)
-        self.source.pack(fill="x", pady=(4, 0))
-        return self.expected
+        return fingerprint
 
     def buttonbox(self):
         frame = ttk.Frame(self)
@@ -53,17 +49,8 @@ class TrustHostKeyDialog(simpledialog.Dialog):
         self.bind("<Escape>", self.cancel)
         frame.pack(pady=(0, 8))
 
-    def validate(self):
-        if self.expected.get().strip() != self.request.key.fingerprint:
-            messagebox.showerror("Fingerprint does not match", "Enter the matching trusted fingerprint or cancel.", parent=self)
-            return False
-        if not self.source.get().strip():
-            messagebox.showerror("Verification source required", "Enter where you verified the fingerprint.", parent=self)
-            return False
-        return True
-
     def apply(self):
-        self.result = (self.source.get().strip(), getpass.getuser())
+        self.result = ("Operator accepted the SSH host key on first use.", getpass.getuser())
 
 
 class ManageHostKeysDialog(simpledialog.Dialog):
