@@ -1,7 +1,13 @@
 from pathlib import Path
+import hashlib
+import json
+from types import SimpleNamespace
 from stig_audit_pro.core.result_model import CheckResult
 from stig_audit_pro.reports.basic_summary import Filter, summarize, export_csv, export_html, export_pdf
 from stig_audit_pro.basic_app import load_template_paths, persist_template_paths
+from stig_audit_pro.basic_app import BasicApp
+from stig_audit_pro.infrastructure.security.at_rest import AtRestVault
+from stig_audit_pro.infrastructure.security.basic_artifacts import ProtectedArtifactStore
 
 def item(ip, vuln, cat, status):
     return CheckResult(ip=ip, hostname='SW-'+ip[-1], vuln_id=vuln,
@@ -30,3 +36,34 @@ def test_packaged_template_paths_replace_old_workspace_paths_and_follow_package_
     assert load_template_paths(first,old,settings)['IOS XE']['L2']==str(first/name)
     persist_template_paths({'IOS XE':{'L2':str(first/name)}},first,settings)
     assert load_template_paths(second,old,settings)['IOS XE']['L2']==str(second/name)
+
+
+def test_summary_export_has_encrypted_hash_manifest(tmp_path):
+    app = BasicApp.__new__(BasicApp)
+    app.last_targets = ['192.0.2.10']
+    app.last_families = ['iosxe_l2']
+    app.last_run_id = 'run-123'
+    app.last_results = [CheckResult(
+        ip='192.0.2.10', hostname='switch', vuln_id='V-1', stig_family='IOSXE_L2',
+        stig_release='Release: 2 Benchmark Date: 02 Jul 2025',
+        title='Example', severity='cat2', status='Open',
+    )]
+    app.summary_pdf = SimpleNamespace(get=lambda: False)
+    app.summary_html = SimpleNamespace(get=lambda: False)
+    app.summary_csv = SimpleNamespace(get=lambda: True)
+    app.license_policy = SimpleNamespace(validate=lambda *_args: None)
+    app._summary_filter = lambda: Filter()
+    app.output_dir = SimpleNamespace(get=lambda: str(tmp_path))
+    app.artifacts = ProtectedArtifactStore(AtRestVault.open(tmp_path / 'vault.json', 'test', create=True))
+    app.messagebox = SimpleNamespace(showerror=lambda *_args: None, showinfo=lambda *_args: None)
+    app.preview_summary = lambda: None
+
+    reports = app.export_summary()
+    assert len(reports) == 1
+    manifests = list(tmp_path.glob('*.manifest.json.sapenc'))
+    assert len(manifests) == 1
+    manifest = json.loads(app.artifacts.read_manifest(manifests[0]))
+    assert manifest['stig_release'] == app.last_results[0].stig_release
+    assert manifest['file_hashes'] == {
+        reports[0].name: hashlib.sha256(app.artifacts.read(reports[0])).hexdigest()
+    }

@@ -1,0 +1,3 @@
+-r requirements-dev.txt
+-r requirements-build.txt
+-r requirements-security.txt

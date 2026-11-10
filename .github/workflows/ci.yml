@@ -17,11 +17,49 @@ jobs:
           python-version: "3.12"
           cache: pip
       - name: Install dependencies
-        run: python -m pip install -r requirements.txt
-      - name: Test and validate YAML command policy
-        run: python -m pytest -q
+        run: |
+          python -m pip install --require-hashes -r requirements.lock
+          python -m pip install --require-hashes -r requirements-tools.lock
+      - name: Audit locked runtime dependencies
+        run: python -m pip_audit --require-hashes -r requirements.lock
+      - name: Audit locked build dependencies
+        run: python -m pip_audit --require-hashes -r requirements-tools.lock
+      - name: Scan source
+        run: python -m bandit -r stig_audit_pro -ll -f json -o bandit.json --exit-zero
+      - name: Reject high-severity source findings
+        run: python -m bandit -r stig_audit_pro -lll -q
+      - name: Generate runtime SBOM
+        run: python -m cyclonedx_py requirements requirements.lock --output-file sbom.cdx.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: security-reports
+          path: |
+            sbom.cdx.json
+            bandit.json
+      - name: Test Basic and shared audit behavior
+        shell: pwsh
+        run: |
+          $basic = @(Get-ChildItem tests/test_basic_*.py | ForEach-Object FullName)
+          $shared = @(
+            'test_acl_parser.py', 'test_application_data.py', 'test_audit_report.py',
+            'test_audit_run.py', 'test_audit_service.py', 'test_automation_confidence.py',
+            'test_build_info.py', 'test_check_engine_integrity.py', 'test_check_engine.py',
+            'test_check_generator.py', 'test_ckl_writer.py', 'test_cklb.py',
+            'test_command_policy.py', 'test_device_groups.py', 'test_host_key_batch.py',
+            'test_host_key_management_ui.py', 'test_interface_policy.py',
+            'test_inventory_importer.py', 'test_ios_followup_checks.py',
+            'test_ios_requested_checks.py', 'test_licensing.py', 'test_profile_builder.py',
+            'test_protected_report_workspace.py', 'test_public_release_hygiene.py',
+            'test_regex_safety.py', 'test_release_stamps.py',
+            'test_reportlab_offline_runtime.py', 'test_scan_orchestrator.py',
+            'test_scan_presets.py', 'test_site_setup.py', 'test_ssh_host_keys.py',
+            'test_yaml_validation.py'
+          ) | ForEach-Object { Join-Path 'tests' $_ }
+          python -m pytest -q @basic @shared
       - name: Validate Basic packaging inputs
         run: python -m PyInstaller --noconfirm --clean --distpath build/ci-dist --workpath build/ci-work "STIG Audit Basic.spec"
+      - name: Verify Basic bundle boundary
+        run: python scripts/check_basic_bundle.py build/ci-work
       - name: Build and run packaged offline smoke test
         shell: pwsh
         run: |

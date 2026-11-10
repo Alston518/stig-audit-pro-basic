@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import time
 
 from stig_audit_pro.application.audit_service import AuditService
 from stig_audit_pro.core.models import CheckDefinition, SiteProfile
 from stig_audit_pro.core.ssh_runner import DeviceCommandRun, DeviceCredentials
+from stig_audit_pro.core.models import DeviceStatus
 
 
 @dataclass
@@ -48,3 +50,48 @@ def test_audit_service_uses_one_runner_per_device_and_traces_results():
     assert all(item.run_id == run_id for item in result.results)
     assert all(item.rule_id == "SV-TEST" for item in result.results)
     assert all(item.check_type == "command_contains" for item in result.results)
+
+
+def test_audit_service_passes_host_key_setting_to_runner():
+    received = []
+
+    class FakeRunner:
+        def run_commands(self, target, _credentials, _commands, **kwargs):
+            received.append(kwargs["verify_host_key"])
+            return DeviceCommandRun(target.ip, "skipped", {}, "Unknown server host key")
+
+    result = AuditService(runner_factory=FakeRunner).run_live(
+        run_id="00000000-0000-4000-8000-000000000043",
+        targets=[Target("192.0.2.10")], credentials=DeviceCredentials("u", "p"),
+        checks=[], profile_provider=lambda _target: SiteProfile(profile_name="test"),
+        verify_host_key=False,
+    )
+    assert received == [False]
+    assert result.summary.failure_count == 1
+
+
+def test_live_audit_stops_after_two_wrong_passwords_with_three_worker_limit():
+    attempted = []
+
+    class WrongPasswordRunner:
+        def run_commands(self, target, _credentials, _commands, **_kwargs):
+            attempted.append(target.ip)
+            if target.ip != "192.0.2.1":
+                time.sleep(0.08)
+            return DeviceCommandRun(
+                target.ip, "failed", {}, "Authentication failed",
+                failure_status=DeviceStatus.AUTH_FAILED,
+            )
+
+    targets = [Target(f"192.0.2.{index}") for index in range(1, 9)]
+    result = AuditService(runner_factory=WrongPasswordRunner).run_live(
+        run_id="00000000-0000-4000-8000-000000000044",
+        targets=targets,
+        credentials=DeviceCredentials("u", "wrong"),
+        checks=[],
+        profile_provider=lambda _target: SiteProfile(profile_name="test"),
+    )
+
+    assert attempted == [target.ip for target in targets[:2]]
+    assert result.summary.failure_count == 2
+    assert result.summary.cancelled_count == 6

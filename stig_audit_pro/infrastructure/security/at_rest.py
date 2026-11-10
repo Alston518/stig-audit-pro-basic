@@ -33,7 +33,6 @@ class AtRestVault:
     def __init__(self, metadata_path: Path, master_key: bytes) -> None:
         self.metadata_path = metadata_path
         self._master_key = master_key
-        self.database_key = self._subkey(b"database")
         self._file_key = self._subkey(b"files")
 
     @classmethod

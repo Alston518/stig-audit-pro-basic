@@ -1,6 +1,7 @@
 schema_version: 1
 library_name: iosxe_ndm
 library_version: "2026.09"
+stig_release: "Release: 6 Benchmark Date: 01 Apr 2026"
 checks:
 - vuln_id: V-220518
   stig_id: CISC-ND-000010

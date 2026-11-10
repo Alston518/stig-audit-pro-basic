@@ -44,16 +44,16 @@ def test_ios_ntp_sources_require_two_profile_defined_servers():
     assert evaluate("ios_ndm", "V-220601", {"show running-config": different}).status == "Open"
 
 
-def test_ios_backup_check_uses_catalyst_center_tailoring():
+def test_ios_backup_check_requires_manual_review():
     result = evaluate("ios_ndm", "V-220618", {})
-    assert result.status == "NotAFinding"
-    assert "Cisco Catalyst Center" in result.comments
+    assert result.status == "Not_Reviewed"
+    assert result.decision_state.value == "MANUAL_REVIEW"
 
 
-def test_ios_certificate_check_is_temporarily_not_applicable():
+def test_ios_certificate_check_requires_manual_review():
     result = evaluate("ios_ndm", "V-220619", {})
-    assert result.status == "Not_Applicable"
-    assert "default" in result.comments.lower()
+    assert result.status == "Not_Reviewed"
+    assert result.decision_state.value == "MANUAL_REVIEW"
 
 
 @pytest.mark.parametrize(

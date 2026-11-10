@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from stig_audit_pro.core.safe_regex import search as safe_regex_search
 from dataclasses import dataclass, field
 from ipaddress import IPv4Address, IPv4Network
 from typing import Any, Iterable
@@ -10,7 +11,7 @@ from typing import Any, Iterable
 from stig_audit_pro.core.exceptions import ExceptionRule, apply_exceptions
 from stig_audit_pro.core.models import CheckDefinition, SiteProfile
 from stig_audit_pro.core.parser_engine import InterfaceView, ParsedDeviceData, parse_outputs
-from stig_audit_pro.core.result_model import CheckResult, FindingObject
+from stig_audit_pro.core.result_model import CheckResult, DecisionState, FindingObject
 from stig_audit_pro.parsers.common import is_physical_interface, vlan_set_to_text
 from stig_audit_pro.parsers.iosxe_acls import AclStatement
 
@@ -22,6 +23,7 @@ class EvaluationOutcome:
     passed_objects: list[FindingObject] = field(default_factory=list)
     details: list[str] = field(default_factory=list)
     status: str | None = None
+    decision_state: DecisionState | None = None
 
 
 class CheckEngine:
@@ -58,39 +60,97 @@ class CheckEngine:
     ) -> CheckResult:
         parsed_data = parsed or parse_outputs(outputs)
         result_hostname = hostname or parsed_data.facts.hostname
-        missing = [command for command in check.commands if command not in outputs]
-        if missing:
+        if check.check_type == "manual_review":
             return self._result(
                 check,
                 ip,
                 result_hostname,
-                status=check.result.error_status,
+                status="Not_Reviewed",
+                decision_state=DecisionState.MANUAL_REVIEW,
                 parsed=parsed_data,
-                error_message=f"Missing command output: {', '.join(missing)}",
+                details=["Manual review required; no automated decision was made."],
+            )
+
+        missing = [command for command in check.commands if command not in outputs]
+        invalid = [
+            command for command in check.commands
+            if command in outputs and self._invalid_evidence(outputs[command])
+        ]
+        if missing or invalid:
+            evidence_problem = []
+            if missing:
+                evidence_problem.append(f"Missing command output: {', '.join(missing)}")
+            if invalid:
+                evidence_problem.append(f"Invalid or empty command output: {', '.join(invalid)}")
+            return self._result(
+                check,
+                ip,
+                result_hostname,
+                status="Error",
+                decision_state=DecisionState.EVIDENCE_ERROR,
+                parsed=parsed_data,
+                error_message="; ".join(evidence_problem),
             )
 
         try:
             outcome = self._evaluate_by_type(check, outputs, parsed_data)
-            status = outcome.status or (check.result.pass_status if outcome.passed else check.result.fail_status)
+            decision_state = outcome.decision_state or (
+                DecisionState.PASS if outcome.passed else DecisionState.FAIL
+            )
+            status = outcome.status or {
+                DecisionState.PASS: check.result.pass_status,
+                DecisionState.FAIL: check.result.fail_status,
+                DecisionState.NOT_APPLICABLE: "Not_Applicable",
+                DecisionState.MANUAL_REVIEW: "Not_Reviewed",
+                DecisionState.EVIDENCE_ERROR: "Error",
+                DecisionState.UNSUPPORTED: "Skipped",
+            }[decision_state]
             return self._result(
                 check,
                 ip,
                 result_hostname,
                 status=status,
+                decision_state=decision_state,
                 parsed=parsed_data,
                 failed_objects=outcome.failed_objects,
                 passed_objects=outcome.passed_objects,
                 details=outcome.details,
+            )
+        except ValueError as exc:
+            unsupported = "Unsupported check type" in str(exc)
+            return self._result(
+                check,
+                ip,
+                result_hostname,
+                status="Skipped" if unsupported else "Error",
+                decision_state=DecisionState.UNSUPPORTED if unsupported else DecisionState.EVIDENCE_ERROR,
+                parsed=parsed_data,
+                error_message=str(exc),
             )
         except Exception as exc:
             return self._result(
                 check,
                 ip,
                 result_hostname,
-                status=check.result.error_status,
+                status="Error",
+                decision_state=DecisionState.EVIDENCE_ERROR,
                 parsed=parsed_data,
                 error_message=str(exc),
             )
+
+    @staticmethod
+    def _invalid_evidence(value: Any) -> bool:
+        if not isinstance(value, str) or not value.strip():
+            return True
+        lines = [line.strip() for line in value.splitlines()]
+        return any(
+            re.search(
+                r"%(?:\s+)?(?:invalid input detected|incomplete command|ambiguous command|unrecognized command|unknown command)",
+                line,
+                flags=re.IGNORECASE,
+            )
+            for line in lines
+        )
 
     def _evaluate_by_type(
         self,
@@ -99,7 +159,11 @@ class CheckEngine:
         parsed: ParsedDeviceData,
     ) -> EvaluationOutcome:
         if check.check_type == "manual_review":
-            return EvaluationOutcome(passed=False, details=["Manual review required."])
+            return EvaluationOutcome(
+                passed=False,
+                decision_state=DecisionState.MANUAL_REVIEW,
+                details=["Manual review required."],
+            )
         if check.check_type == "command_contains":
             return self._command_contains(check, outputs, expected=True)
         if check.check_type == "command_not_contains":
@@ -151,6 +215,7 @@ class CheckEngine:
         passed_objects: list[FindingObject] | None = None,
         details: list[str] | None = None,
         error_message: str | None = None,
+        decision_state: DecisionState | None = None,
     ) -> CheckResult:
         failed = failed_objects or []
         passed = passed_objects or []
@@ -162,15 +227,21 @@ class CheckEngine:
         if error_message:
             detail_lines.append(error_message)
 
+        automated_status = status
         comments = self._comment_for_status(check, status)
         result = CheckResult(
             ip=ip,
             hostname=hostname,
             vuln_id=check.vuln_id,
             stig_family=check.stig_family,
+            stig_release=check.source_release,
             title=check.title,
             severity=check.severity,
             status=status,
+            decision_state=decision_state or (
+                DecisionState.PASS if status == check.result.pass_status else DecisionState.FAIL
+            ),
+            automated_status=automated_status,
             failed_objects=failed,
             passed_objects=passed,
             finding_details="\n".join(line for line in detail_lines if line),
@@ -284,7 +355,7 @@ class CheckEngine:
         if op == "contains":
             return str(expected) in str(field_value)
         if op == "regex":
-            return bool(re.search(str(expected), str(field_value), flags=re.MULTILINE))
+            return bool(safe_regex_search(str(expected), str(field_value), flags=re.MULTILINE))
         raise ValueError(f"Unsupported condition op: {op}")
 
     def _conditions_pass(self, field_getter: Any, conditions: Iterable[dict[str, Any]]) -> bool:
@@ -327,7 +398,7 @@ class CheckEngine:
         flags = re.MULTILINE
         if not case_sensitive:
             flags |= re.IGNORECASE
-        return bool(re.search(pattern, text, flags=flags))
+        return bool(safe_regex_search(pattern, text, flags=flags))
 
     def _expand_pattern_configs(self, pattern_configs: Iterable[Any]) -> list[dict[str, Any]]:
         expanded: list[dict[str, Any]] = []
@@ -427,7 +498,7 @@ class CheckEngine:
         flags = re.MULTILINE
         if not bool(pattern_config.get("case_sensitive", False)):
             flags |= re.IGNORECASE
-        match = re.search(pattern, outputs.get(command, ""), flags=flags)
+        match = safe_regex_search(pattern, outputs.get(command, ""), flags=flags)
         return match.group(0).strip() if match else None
 
     def _command_pattern_matches(
@@ -456,6 +527,7 @@ class CheckEngine:
             return EvaluationOutcome(
                 passed=False,
                 status="Not_Reviewed",
+                decision_state=DecisionState.MANUAL_REVIEW,
                 details=["No search strings are configured for this check yet."],
             )
 
@@ -630,6 +702,7 @@ class CheckEngine:
             return EvaluationOutcome(
                 passed=False,
                 status="Not_Reviewed",
+                decision_state=DecisionState.MANUAL_REVIEW,
                 details=["No interface search strings are configured for this check yet."],
             )
         running_text = parsed.raw_outputs.get("show running-config", "")
@@ -1300,6 +1373,7 @@ class CheckEngine:
             return EvaluationOutcome(
                 passed=False,
                 status="Not_Reviewed",
+                decision_state=DecisionState.MANUAL_REVIEW,
                 details=[
                     "No core/distribution CDP hostnames are configured in "
                     f"profile.{upstream_profile_key}."
@@ -1314,6 +1388,7 @@ class CheckEngine:
             return EvaluationOutcome(
                 passed=False,
                 status="Not_Reviewed",
+                decision_state=DecisionState.MANUAL_REVIEW,
                 details=["No CDP neighbor entries were available; topology could not be verified."],
             )
 
@@ -1454,7 +1529,15 @@ class CheckEngine:
         conditions = check.conditions.get("all", [])
         failed: list[FindingObject] = []
         passed: list[FindingObject] = []
-        for interface in self._interface_candidates(check, parsed):
+        candidates = self._interface_candidates(check, parsed)
+        if not candidates:
+            return EvaluationOutcome(
+                passed=False,
+                status="Not_Applicable",
+                decision_state=DecisionState.NOT_APPLICABLE,
+                details=["No interfaces matched the declared scope; applicability requires review."],
+            )
+        for interface in candidates:
             ok = self._conditions_pass(lambda field: self._interface_field(interface, field), conditions)
             details = (
                 f"status={interface.operational_status}, shutdown={interface.shutdown}, "
@@ -1824,6 +1907,13 @@ class CheckEngine:
         conditions = check.conditions.get("all", [])
         failed: list[FindingObject] = []
         passed: list[FindingObject] = []
+        if not parsed.trunks:
+            return EvaluationOutcome(
+                passed=False,
+                status="Not_Applicable",
+                decision_state=DecisionState.NOT_APPLICABLE,
+                details=["No trunk entries were available; applicability requires review."],
+            )
         for trunk_name, trunk in parsed.trunks.items():
             ok = self._conditions_pass(
                 lambda field, name=trunk_name: self._trunk_field(name, parsed, field),

@@ -1,5 +1,9 @@
 # Basic security update — 9 October 2026
 
+The current staged integrity work, evidence-store encryption API, strict SSH
+host-key behavior, and known limitations are tracked in
+[`SECURITY_AND_AUDIT_INTEGRITY.md`](SECURITY_AND_AUDIT_INTEGRITY.md).
+
 This guide applies to **STIG Audit Basic for IOS and IOS XE**, including its
 free single-device mode and signed-license batches. The executable in this
 folder is the Basic app. It does not launch the Pro interface.
@@ -64,16 +68,15 @@ SSH failure text with safe operator guidance.
 
 ## SSH server identity
 
-Basic currently runs with Netmiko `ssh_strict=False` and
-`system_host_keys=False`. It does not load or enforce the current Windows
-account's OpenSSH `%USERPROFILE%\.ssh\known_hosts` file. This temporary
-compatibility setting allows live audits without manual host-key enrollment;
-it also means an unknown or changed server key is not blocked by Basic.
-Treat Live SSH as an approved network-only pilot until host-key enrollment is
-restored. SSH identity keys and the SSH agent remain disabled for the app's
-password-based login, and password and enable-secret fields are cleared when
-a live audit starts.
-The app skips the affected device rather than sending audit commands.
+Basic uses its own local SSH trust store and verifies saved host keys by
+default. It does not rely on the Windows account's OpenSSH
+`%USERPROFILE%\.ssh\known_hosts` file. Before a batch audit, it discovers new
+keys without sending credentials, lists their fingerprints, and allows one
+first-use approval without a required note or source. The optional source
+field can record an independent check; when blank, the activity record states
+that this was not independently verified. Changed saved keys remain blocked.
+SSH identity keys and the SSH agent remain disabled for the app's
+password-based login.
 SSH password and enable-secret entry fields are cleared when a live audit
 starts. Credentials must remain in process memory for the duration of that
 connection; Basic does not persist them. A close request during an active run
@@ -102,7 +105,8 @@ contain the sample hostname or finding text. Reopen a report in Results and
 verify that a readable copy appears only after **Export readable copy**.
 The SSH checks use a simulated connection boundary; a live authorized Cisco
 device is still required for an end-to-end network test. The current tests
-also assert that Basic passes the temporary host-key-disabled settings.
+cover first-use approval, changed-key rejection, and the explicit
+host-key-verification toggle.
 No cloud AI integration is enabled. A future model-based review would require
 an approved data flow, authorization boundary, retention policy, and offline
 or accredited deployment decision before any device configuration is sent.

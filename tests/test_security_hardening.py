@@ -40,8 +40,8 @@ def test_report_writers_neutralize_formula_like_finding_text(tmp_path):
     assert "'=HYPERLINK" in csv_path.read_text(encoding="utf-8-sig")
     excel_path = write_excel_report([result], tmp_path / "findings.xlsx")
     workbook = load_workbook(excel_path, read_only=True)
-    values = list(workbook["All Findings"].iter_rows(values_only=True))[1]
-    assert values[9].startswith("'=")
+    headers, values = list(workbook["All Findings"].iter_rows(values_only=True))[:2]
+    assert values[headers.index("Title")].startswith("'=")
 
 
 def test_ssh_library_logging_cannot_emit_banners_at_info_level():

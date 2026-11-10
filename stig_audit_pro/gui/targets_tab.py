@@ -192,7 +192,7 @@ class TargetsTab(PageFrame):
         self.ssh_timeout.grid(row=5, column=1, columnspan=2, sticky="ew", padx=8, pady=(2, 6))
         ctk.CTkLabel(scan_panel, text="Concurrency").grid(row=6, column=0, sticky="w", padx=8, pady=2)
         self.scan_concurrency = ctk.CTkEntry(scan_panel, height=28)
-        self.scan_concurrency.insert(0, "5")
+        self.scan_concurrency.insert(0, "3")
         self.scan_concurrency.grid(row=6, column=1, columnspan=2, sticky="ew", padx=8, pady=2)
         ctk.CTkLabel(scan_panel, text="Command timeout").grid(row=7, column=0, sticky="w", padx=8, pady=(2, 6))
         self.command_timeout = ctk.CTkEntry(scan_panel, height=28)
@@ -772,7 +772,7 @@ class TargetsTab(PageFrame):
         timeout_text = self.ssh_timeout.get().strip()
         timeout = int(timeout_text) if timeout_text.isdigit() else 30
         concurrency_text = self.scan_concurrency.get().strip()
-        concurrency = int(concurrency_text) if concurrency_text.isdigit() else 5
+        concurrency = int(concurrency_text) if concurrency_text.isdigit() else 3
         command_timeout_text = self.command_timeout.get().strip()
         command_timeout = int(command_timeout_text) if command_timeout_text.isdigit() else 30
         return {
@@ -801,7 +801,7 @@ class TargetsTab(PageFrame):
             entry.delete(0, "end")
             entry.insert(0, str(value))
 
-        replace(self.scan_concurrency, getattr(preset, "concurrency", 5))
+        replace(self.scan_concurrency, getattr(preset, "concurrency", 3))
         replace(self.ssh_timeout, getattr(preset, "connect_timeout", 30))
         replace(self.command_timeout, getattr(preset, "command_timeout", 30))
         families = set(getattr(preset, "stig_families", []))

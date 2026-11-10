@@ -65,12 +65,13 @@ class AuditService:
         credentials: DeviceCredentials,
         checks: list[CheckDefinition],
         profile_provider: ProfileProvider,
-        concurrency: int = 5,
+        concurrency: int = 3,
         connect_timeout: int = 30,
         command_timeout: int = 30,
         cancel_event: threading.Event | None = None,
         event_queue: queue.Queue[ScanEvent] | None = None,
         evidence_sink: EvidenceSink | None = None,
+        verify_host_key: bool = True,
     ) -> AuditServiceResult:
         commands = plan_commands(checks, run_all=False)
 
@@ -83,11 +84,12 @@ class AuditService:
                 commands,
                 cancel_event=cancellation,
                 command_timeout=command_timeout,
+                verify_host_key=verify_host_key,
             )
             if command_run.status == "cancelled":
                 return DeviceScanOutcome(target.ip, DeviceStatus.CANCELLED)
             if command_run.status != "scanned":
-                status = _connection_failure_status(command_run.error_message or "")
+                status = command_run.failure_status or _connection_failure_status(command_run.error_message or "")
                 return DeviceScanOutcome(
                     target.ip, status, error_message=command_run.error_message
                 )
@@ -100,6 +102,7 @@ class AuditService:
             run_id=run_id, targets=targets, worker=worker,
             target_ip=lambda target: target.ip,
             cancel_event=cancel_event, event_queue=event_queue,
+            auth_guard=True,
         )
         return _combine(summary)
 
@@ -111,7 +114,7 @@ class AuditService:
         checks: list[CheckDefinition],
         profile_provider: ProfileProvider,
         output_loader: SampleLoader,
-        concurrency: int = 5,
+        concurrency: int = 3,
         cancel_event: threading.Event | None = None,
         event_queue: queue.Queue[ScanEvent] | None = None,
         evidence_sink: EvidenceSink | None = None,

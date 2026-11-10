@@ -156,6 +156,8 @@ class CheckLibrary(StrictModel):
     schema_version: Literal[1] = 1
     library_name: str | None = None
     library_version: str = "legacy"
+    stig_release: str | None = None
+    validation_status: Literal["unspecified", "unvalidated", "validated"] = "unspecified"
     checks: list[CheckDefinition] = Field(default_factory=list)
 
     @field_validator("library_name")
@@ -188,6 +190,11 @@ class CheckLibrary(StrictModel):
             seen.add(check.vuln_id)
         if duplicates:
             raise ValueError(f"duplicate vuln_id values: {', '.join(sorted(duplicates))}")
+        if self.stig_release:
+            for check in self.checks:
+                if check.source_release and check.source_release != self.stig_release:
+                    raise ValueError("check source_release differs from library stig_release")
+                check.source_release = self.stig_release
         return self
 
 
@@ -293,6 +300,8 @@ class DeviceStatus(str, Enum):
     COMPLETE = "COMPLETE"
     AUTH_FAILED = "AUTH_FAILED"
     CONNECT_FAILED = "CONNECT_FAILED"
+    HOST_KEY_UNKNOWN = "HOST_KEY_UNKNOWN"
+    HOST_KEY_CHANGED = "HOST_KEY_CHANGED"
     COLLECTION_FAILED = "COLLECTION_FAILED"
     EVALUATION_FAILED = "EVALUATION_FAILED"
     CANCELLED = "CANCELLED"

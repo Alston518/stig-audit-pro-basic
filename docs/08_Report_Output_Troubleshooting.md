@@ -18,13 +18,11 @@ If report writing fails after an earlier file was saved, Basic reports a
 partial audit and lists the files that exist. A Summary export similarly
 reports any protected files saved before a later format failed.
 
-For live SSH, Basic currently has host-key verification disabled for temporary
-compatibility. Confirm the address, port, account, and network path through
-your approved pilot process before collection. Other failures can be caused by
+For live SSH, Basic verifies saved host keys by default. First-use keys appear
+in one review list; changed saved keys are blocked. Other failures can be caused by
 credentials, reachability, device access, or invalid site settings. Recheck
 the Audit tab's selection and the reported device outcome, then retry after
-correcting the cause. Host-key verification should be restored before a
-production deployment.
+correcting the cause.
 
 The `.sapenc` file is ciphertext. Use **Results → Open protected report** to
 read supported text formats in Basic. **Export readable copy** deliberately

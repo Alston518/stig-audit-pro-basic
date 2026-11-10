@@ -23,13 +23,14 @@ def test_required_checks_pass_on_compliant_sample_outputs():
     counts = Counter(result.status for result in results.values())
 
     assert counts["NotAFinding"] == 21
-    assert counts["Not_Reviewed"] == 0
+    assert counts["Not_Reviewed"] == 1
     assert counts["Not_Applicable"] == 0
-    assert counts["Open"] == 1
+    assert counts["Open"] == 0
     assert results["V-220649"].status == "NotAFinding"
     assert results["V-220650"].status == "NotAFinding"
-    assert results["V-220651"].status == "Open"
-    assert "pending QoS implementation" in results["V-220651"].comments
+    assert results["V-220651"].status == "Not_Reviewed"
+    assert results["V-220651"].decision_state.value == "MANUAL_REVIEW"
+    assert "Manual review" in results["V-220651"].finding_details
     assert results["V-220655"].status == "NotAFinding"
     assert results["V-220656"].status == "NotAFinding"
     assert results["V-220657"].status == "NotAFinding"
@@ -53,12 +54,12 @@ def test_required_checks_fail_on_noncompliant_sample_outputs():
     results = _results_by_vuln("noncompliant")
     counts = Counter(result.status for result in results.values())
 
-    assert counts["Open"] == 20
-    assert counts["Not_Reviewed"] == 0
+    assert counts["Open"] == 19
+    assert counts["Not_Reviewed"] == 1
     assert counts["NotAFinding"] == 2
     assert results["V-220649"].status == "Open"
     assert results["V-220650"].status == "Open"
-    assert results["V-220651"].status == "Open"
+    assert results["V-220651"].status == "Not_Reviewed"
     assert results["V-220655"].status == "Open"
     assert results["V-220655"].failed_objects[0].object_name == "GigabitEthernet1/0/24"
     assert results["V-220656"].status == "Open"
@@ -1086,7 +1087,7 @@ def test_vty_session_limit_policy_uses_limit_or_counts_unique_vty_lines():
     assert results["malformed_limit"].status == "Open"
 
 
-def test_catalyst_center_backup_check_is_temporarily_not_a_finding():
+def test_catalyst_center_backup_check_requires_manual_review():
     check = next(
         check
         for check in load_check_library(
@@ -1100,13 +1101,11 @@ def test_catalyst_center_backup_check_is_temporarily_not_a_finding():
         ip="192.0.2.1",
     )
 
-    assert result.status == "NotAFinding"
-    assert result.comments == (
-        "Configuration backups are performed through Cisco Catalyst Center."
-    )
+    assert result.status == "Not_Reviewed"
+    assert result.decision_state.value == "MANUAL_REVIEW"
 
 
-def test_public_key_certificate_check_is_tailored_not_applicable():
+def test_public_key_certificate_check_requires_manual_review():
     check = next(
         check
         for check in load_check_library(
@@ -1120,11 +1119,8 @@ def test_public_key_certificate_check_is_tailored_not_applicable():
         ip="192.0.2.1",
     )
 
-    assert result.status == "Not_Applicable"
-    assert "does not use organization-managed public key certificates" in (
-        result.comments
-    )
-    assert "Cisco factory-installed/default certificates" in result.comments
+    assert result.status == "Not_Reviewed"
+    assert result.decision_state.value == "MANUAL_REVIEW"
 
 
 def test_radius_server_policy_requires_server_blocks_keys_and_group_membership():

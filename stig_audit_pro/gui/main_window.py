@@ -824,7 +824,10 @@ class StigAuditProApp(ctk.CTk):
 
     def retry_failed_devices(self, run_id: str) -> None:
         """Create a linked retry run containing only previously failed devices."""
-        failure_states = {"AUTH_FAILED", "CONNECT_FAILED", "COLLECTION_FAILED", "EVALUATION_FAILED"}
+        failure_states = {
+            "AUTH_FAILED", "CONNECT_FAILED", "HOST_KEY_UNKNOWN", "HOST_KEY_CHANGED",
+            "COLLECTION_FAILED", "EVALUATION_FAILED",
+        }
         devices = self.run_service.repository.list_devices(run_id)
         failed = [item for item in devices if item.status in failure_states]
         if not failed:
@@ -1889,7 +1892,7 @@ class StigAuditProApp(ctk.CTk):
                 target_ips=[target.ip for target in self.targets_tab.get_targets("checked")],
                 stig_families=sorted(audit.get("families", set())),
                 profile_name=self.profile_name,
-                concurrency=int(settings.get("concurrency") or 5),
+                concurrency=int(settings.get("concurrency") or 3),
                 connect_timeout=int(settings.get("timeout") or 30),
                 command_timeout=int(settings.get("command_timeout") or 30),
                 report_options=ReportOptions(
@@ -2217,7 +2220,7 @@ class StigAuditProApp(ctk.CTk):
             runtime_settings = {
                 "mode": "Live SSH",
                 "timeout": int(settings.get("timeout") or 30),
-                "concurrency": int(settings.get("concurrency") or 5),
+                "concurrency": int(settings.get("concurrency") or 3),
                 "command_timeout": int(
                     settings.get("command_timeout") or settings.get("timeout") or 30
                 ),
@@ -2541,7 +2544,7 @@ class StigAuditProApp(ctk.CTk):
                     credentials=credentials,
                     checks=checks,
                     profile_provider=self._profile_for_target,
-                    concurrency=int(settings.get("concurrency") or 5),
+                    concurrency=int(settings.get("concurrency") or 3),
                     connect_timeout=int(settings.get("timeout") or 30),
                     command_timeout=int(settings.get("command_timeout") or settings.get("timeout") or 30),
                     cancel_event=cancellation,
@@ -2557,7 +2560,7 @@ class StigAuditProApp(ctk.CTk):
                     output_loader=lambda target: self._load_sample_outputs(
                         self._sample_name_for_target(target)
                     ),
-                    concurrency=int(settings.get("concurrency") or 5),
+                    concurrency=int(settings.get("concurrency") or 3),
                     cancel_event=cancellation,
                     event_queue=self._scan_event_queue,
                     evidence_sink=self.run_service.evidence_sink(context),
@@ -2835,7 +2838,7 @@ class StigAuditProApp(ctk.CTk):
                 output_loader=lambda target: self._load_sample_outputs(
                     self._sample_name_for_target(target)
                 ),
-                concurrency=min(5, max(1, len(targets))),
+                concurrency=min(3, max(1, len(targets))),
                 evidence_sink=self.run_service.evidence_sink(context),
             )
             results = self._persist_service_result(context, service_result, commands)
@@ -2883,7 +2886,7 @@ class StigAuditProApp(ctk.CTk):
         context: RunContext | None = None
         try:
             timeout = int(settings.get("timeout") or 30)
-            concurrency = int(settings.get("concurrency") or 5)
+            concurrency = int(settings.get("concurrency") or 3)
             command_timeout = int(settings.get("command_timeout") or timeout)
             credentials = DeviceCredentials(
                 username=username,

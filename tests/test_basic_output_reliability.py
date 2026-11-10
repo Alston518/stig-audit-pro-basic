@@ -7,12 +7,17 @@ import threading
 from pathlib import Path
 from types import SimpleNamespace
 
+import paramiko
+import pytest
+
 from stig_audit_pro import basic_app
 from stig_audit_pro.application.audit_service import AuditService
 from stig_audit_pro.core.ssh_runner import DeviceCommandRun, DeviceCredentials
 from stig_audit_pro.core.yaml_loader import load_profile
 from stig_audit_pro.infrastructure.security.at_rest import AtRestVault
 from stig_audit_pro.infrastructure.security.basic_artifacts import ProtectedArtifactStore
+from stig_audit_pro.infrastructure.ssh.host_keys import HostKeyTrustStore
+from stig_audit_pro.infrastructure.ssh.netmiko_runner import NetmikoRunner
 from stig_audit_pro.licensing import LicenseManager
 from stig_audit_pro.licensing.basic_policy import BasicLicensePolicy
 from stig_audit_pro.storage.device_groups import DeviceTargetRecord
@@ -35,6 +40,49 @@ def _app(tmp_path: Path, *, allow_batch: bool = False):
 def _last_message(app) -> str:
     messages = [event.message for event in list(app.events.queue) if hasattr(event, "message")]
     return messages[-1]
+
+
+@pytest.mark.parametrize(("failure", "expected"), [
+    ("unknown", "SSH host key is not stored"),
+    ("changed", "SSH host key has changed"),
+    ("unreachable", "SSH connection failed; check the address, port, and reachability"),
+])
+def test_live_ssh_distinguishes_host_key_rejection_from_reachability(
+    monkeypatch, tmp_path, failure, expected
+):
+    key = paramiko.RSAKey.generate(1024)
+
+    def reject(client, hostname, **kwargs):
+        assert isinstance(client._policy, paramiko.RejectPolicy)
+        if failure == "unknown":
+            client._policy.missing_host_key(client, hostname, key)
+        if failure == "changed":
+            raise paramiko.BadHostKeyException(hostname, key, paramiko.RSAKey.generate(1024))
+        raise ConnectionRefusedError("private diagnostic")
+
+    monkeypatch.setattr(paramiko.SSHClient, "_log", lambda *_args: None)
+    monkeypatch.setattr(paramiko.SSHClient, "connect", reject)
+    trust_store = HostKeyTrustStore(tmp_path / "known_hosts")
+    monkeypatch.setattr(
+        basic_app, "AuditService",
+        lambda: AuditService(runner_factory=lambda: NetmikoRunner(trust_store)),
+    )
+    app = _app(tmp_path)
+    output = tmp_path / "reports"
+    app._run(
+        [DeviceTargetRecord(ip="192.0.2.10")], [], None,
+        DeviceCredentials("operator", "private password"), ["iosxe_l2"], "Live SSH",
+        {}, True, False, output,
+    )
+
+    events = list(app.events.queue)
+    final = events[-1]
+    assert final.run_state == "failed"
+    assert expected in final.message
+    assert any(expected in basic_app._scan_event_text(event) for event in events[:-1])
+    assert "private " not in final.message
+    assert key.get_base64() not in final.message
+    assert not list(output.glob("*"))
 
 
 def test_all_failed_ssh_devices_do_not_claim_reports_were_written(monkeypatch, tmp_path):
@@ -115,6 +163,32 @@ def test_report_stem_is_windows_safe_for_ipv6_and_hostnames():
     }
     assert len(names) == 4
     assert all(not any(char in name for char in '<>:"/\\|?*') for name in names)
+
+
+def test_open_protected_report_opens_current_output_folder_without_browsing(tmp_path, monkeypatch):
+    output = tmp_path / "reports"
+    output.mkdir()
+    app = basic_app.BasicApp.__new__(basic_app.BasicApp)
+    app.last_output_dir = output
+    app.messagebox = SimpleNamespace(showinfo=lambda *_args, **_kwargs: None)
+    opened = []
+    monkeypatch.setattr(basic_app.os, "startfile", lambda path: opened.append(Path(path)))
+
+    app.open_protected_report()
+
+    assert opened == [output]
+
+
+def test_open_protected_report_reports_missing_output_folder(tmp_path):
+    app = basic_app.BasicApp.__new__(basic_app.BasicApp)
+    app.last_output_dir = tmp_path / "missing"
+    messages = []
+    app.messagebox = SimpleNamespace(showinfo=lambda *args, **kwargs: messages.append(args))
+
+    app.open_protected_report()
+
+    assert messages
+    assert messages[0][0] == "No output folder"
 
 
 def test_poll_rechecks_queue_after_worker_finishes():
@@ -324,3 +398,116 @@ def test_summary_export_reports_partial_protected_files(monkeypatch, tmp_path):
     assert "1 encrypted file" in errors[0][1]
     assert str(paths[0]) in errors[0][1]
     assert "PRIVATE" not in errors[0][1]
+
+def _protected_name(ip, report_type, run="95895e0c"):
+    dashed = ip.replace(".", "-")
+    last = ip.rsplit(".", 1)[-1]
+    return f"{last}_IOSXE_NDM_03NOV2026_{dashed}-bc6a86bfe394_{run}.{report_type}.sapenc"
+
+
+def test_import_protected_reports_defaults_to_output_folder_and_accepts_many(tmp_path):
+    from stig_audit_pro.gui.protected_reports import ProtectedReportWorkspace
+
+    output = tmp_path / "reports"
+    output.mkdir()
+    first = output / _protected_name("192.0.2.156", "txt")
+    second = output / _protected_name("192.0.2.157", "ckl")
+    app = basic_app.BasicApp.__new__(basic_app.BasicApp)
+    app.last_output_dir = output
+    app.report_workspace = ProtectedReportWorkspace()
+    calls = {}
+    app.filedialog = SimpleNamespace(
+        askopenfilenames=lambda **kwargs: calls.update(kwargs) or (str(first), str(second)),
+    )
+    app.messagebox = SimpleNamespace(showwarning=lambda *_args: None)
+    refreshed = []
+    displayed = []
+    app._refresh_report_selectors = lambda **_kwargs: refreshed.append(True)
+    app._display_selected_report = lambda: displayed.append(True)
+
+    app.import_protected_report()
+
+    assert calls["initialdir"] == str(output)
+    assert [report.path for report in app.report_workspace.reports()] == [first.resolve(), second.resolve()]
+    assert refreshed == [True]
+    assert displayed == [True]
+
+
+def test_selected_report_preview_decrypts_only_the_active_report(tmp_path):
+    from stig_audit_pro.gui.protected_reports import ProtectedReportWorkspace
+
+    first = tmp_path / _protected_name("192.0.2.156", "txt")
+    second = tmp_path / _protected_name("192.0.2.157", "txt")
+    app = basic_app.BasicApp.__new__(basic_app.BasicApp)
+    app.report_workspace = ProtectedReportWorkspace()
+    app.report_workspace.add([first, second])
+    app.report_device_menu = SimpleNamespace(get=lambda: "192.0.2.157")
+    app.report_type_menu = SimpleNamespace(get=lambda: "TXT")
+    displayed = []
+    app._display_protected_report = lambda path: displayed.append(Path(path))
+
+    app._display_selected_report()
+
+    assert displayed == [second.resolve()]
+
+
+def test_clear_imported_reports_removes_paths_and_plaintext_preview(tmp_path):
+    from stig_audit_pro.gui.protected_reports import ProtectedReportWorkspace
+
+    app = basic_app.BasicApp.__new__(basic_app.BasicApp)
+    app.report_workspace = ProtectedReportWorkspace()
+    app.report_workspace.add([tmp_path / "legacy.txt.sapenc"])
+    calls = []
+    app.results_box = SimpleNamespace(
+        delete=lambda *args: calls.append(("delete", args)),
+        insert=lambda *args: calls.append(("insert", args)),
+    )
+    app._refresh_report_selectors = lambda: calls.append(("refresh", ()))
+
+    app.clear_protected_reports()
+
+    assert app.report_workspace.reports() == ()
+    assert calls[0][0] == "delete"
+    assert calls[1][0] == "insert"
+    assert "Import protected reports" in calls[1][1][1]
+    assert calls[2][0] == "refresh"
+
+
+def test_batch_export_uses_selected_imports_defaults_to_output_and_confirms_once(tmp_path):
+    from stig_audit_pro.gui.protected_reports import ProtectedReportWorkspace
+
+    output = tmp_path / "reports"
+    output.mkdir()
+    first = output / _protected_name("192.0.2.156", "txt")
+    second = output / _protected_name("192.0.2.157", "txt")
+    third = output / _protected_name("192.0.2.158", "ckl")
+    app = basic_app.BasicApp.__new__(basic_app.BasicApp)
+    app.last_output_dir = output
+    app.report_workspace = ProtectedReportWorkspace()
+    app.report_workspace.add([first, second, third])
+    selected = (app.report_workspace.reports()[0], app.report_workspace.reports()[2])
+    app._choose_reports_for_export = lambda reports: selected
+    calls = {}
+    destination = tmp_path / "readable"
+    app.filedialog = SimpleNamespace(askdirectory=lambda **kwargs: calls.update(kwargs) or str(destination))
+    confirmations = []
+    messages = []
+    app.messagebox = SimpleNamespace(
+        askyesno=lambda *args: confirmations.append(args) or True,
+        showinfo=lambda *args: messages.append(args),
+        showwarning=lambda *args: messages.append(args),
+    )
+
+    class Store:
+        def export(self, _protected, clear):
+            Path(clear).write_bytes(b"readable")
+
+    app.artifacts = Store()
+
+    app.export_protected_report()
+
+    assert calls["initialdir"] == str(output)
+    assert len(confirmations) == 1
+    assert len(list(destination.iterdir())) == 2
+    assert {path.name for path in destination.iterdir()} == {first.stem, third.stem}
+    assert "2 readable report" in messages[-1][1]

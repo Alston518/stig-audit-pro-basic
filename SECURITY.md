@@ -22,8 +22,11 @@ branch. Older builds may be asked to upgrade before a report is investigated.
 - `.sapenc` protects newly created Basic reports at rest. Explicit readable
   exports, logs, licenses, templates, editable YAML, memory, pagefile, crash
   dumps, and external backups require separate organizational controls.
-- Live SSH rejects unknown and changed server keys using the current Windows
-  account's OpenSSH `known_hosts` file.
+- Live SSH verifies saved host keys by default using Basic's own local trust
+  store. New fingerprints are reviewed before credentials are sent; changed
+  saved keys block the audit. First-use acceptance can be recorded without an
+  independent source check, so operators should verify fingerprints through a
+  trusted channel when possible.
 - The current executable is unsigned, and the bundled cryptographic module is
   not claimed as FIPS 140-3 validated.
 - No cloud AI service receives device configurations or findings.

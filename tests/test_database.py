@@ -51,6 +51,7 @@ def test_temporary_sqlite_schema_foreign_keys_and_history_crud(tmp_path):
         loaded = repository.get_run(run.run_id)
         assert loaded is not None
         assert loaded.devices[0].check_results[0].title == "Test"
+        assert loaded.devices[0].check_results[0].automated_status == "Open"
         assert loaded.devices[0].check_results[0].evidence_links[0].evidence_artifact_id == artifact.id
         assert repository.result_counts(run.run_id) == {"Open": 1}
         assert repository.list_runs()[0].success_count == 1
@@ -59,6 +60,51 @@ def test_temporary_sqlite_schema_foreign_keys_and_history_crud(tmp_path):
         assert repository.get_run(run.run_id) is None
         with database.engine.connect() as connection:
             assert connection.scalar(text("select count(*) from evidence_artifact")) == 0
+    finally:
+        database.dispose()
+
+
+def test_manual_review_preserves_original_automated_decision(tmp_path):
+    database = Database(tmp_path / "review.sqlite3")
+    try:
+        repository = AuditRunRepository(database)
+        run = repository.create_run(run_id=str(uuid4()))
+        device = repository.add_device(run.id, target_ip="192.0.2.11")
+        result = CheckResult(
+            run_id=run.id,
+            ip="192.0.2.11",
+            hostname="SW02",
+            vuln_id="V-2",
+            stig_family="IOSXE_L2",
+            title="Review me",
+            severity="cat2",
+            status="Error",
+            decision_state="EVIDENCE_ERROR",
+            automated_status="Error",
+            finding_details="The command output was incomplete.",
+            comments="Evidence error.",
+            commands_used=["show running-config"],
+        )
+        stored = repository.add_check_result(device.id, result)
+
+        repository.update_result_decision(
+            run.id,
+            "192.0.2.11",
+            "V-2",
+            status="NotAFinding",
+            finding_details="Reviewer verified the approved exception.",
+            comments="Reviewed under ticket CYBER-42.",
+            justification="CYBER-42 and independent configuration review.",
+        )
+
+        loaded = repository.list_check_results(run.id)[0]
+        assert loaded.status == "NotAFinding"
+        assert loaded.review_status == "NotAFinding"
+        assert loaded.review_justification.startswith("CYBER-42")
+        assert loaded.automated_status == "Error"
+        assert loaded.automated_finding_details == "The command output was incomplete."
+        assert loaded.automated_comments == "Evidence error."
+        assert stored.id == loaded.id
     finally:
         database.dispose()
 

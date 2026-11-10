@@ -1,6 +1,14 @@
 ﻿from __future__ import annotations
 
-from stig_audit_pro.storage.device_groups import DeviceGroup, DeviceGroupStore, DeviceTargetRecord
+import pytest
+
+from stig_audit_pro.storage.device_groups import (
+    DeviceGroup,
+    DeviceGroupStore,
+    DeviceGroupValidationError,
+    DeviceTargetRecord,
+    normalize_device_addresses,
+)
 
 
 def test_device_group_store_round_trip(tmp_path):
@@ -23,3 +31,23 @@ def test_device_group_store_round_trip(tmp_path):
     assert [target.ip for target in loaded.targets] == ["192.0.2.25", "192.0.2.26"]
     assert loaded.targets[1].profile_override == "base_iosxe_access"
     assert loaded.targets[1].checked is False
+
+
+def test_normalize_device_addresses_rejects_duplicates_and_invalid_values():
+    assert normalize_device_addresses([" 192.0.2.25 ", "switch-a.example.mil"]) == [
+        "192.0.2.25",
+        "switch-a.example.mil",
+    ]
+
+    with pytest.raises(DeviceGroupValidationError, match="duplicate"):
+        normalize_device_addresses(["192.0.2.25", "192.0.2.25"])
+
+    with pytest.raises(DeviceGroupValidationError, match="invalid"):
+        normalize_device_addresses(["not a host name"])
+
+
+def test_save_group_rejects_empty_groups(tmp_path):
+    store = DeviceGroupStore(tmp_path)
+
+    with pytest.raises(DeviceGroupValidationError, match="at least one"):
+        store.save_group(DeviceGroup(group_name="empty", targets=[]))

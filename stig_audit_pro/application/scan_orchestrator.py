@@ -92,7 +92,7 @@ class ScanOrchestrator(Generic[TargetT]):
 
     MIN_CONCURRENCY = 1
     MAX_CONCURRENCY = 20
-    DEFAULT_CONCURRENCY = 5
+    DEFAULT_CONCURRENCY = 3
 
     def __init__(self, concurrency: int = DEFAULT_CONCURRENCY) -> None:
         if not self.MIN_CONCURRENCY <= concurrency <= self.MAX_CONCURRENCY:
@@ -108,6 +108,7 @@ class ScanOrchestrator(Generic[TargetT]):
         target_ip: Callable[[TargetT], str] = lambda target: str(target),
         cancel_event: threading.Event | None = None,
         event_queue: queue.Queue[ScanEvent] | None = None,
+        auth_guard: bool = False,
     ) -> ScanSummary:
         """Run a scan synchronously while workers execute concurrently.
 
@@ -141,6 +142,18 @@ class ScanOrchestrator(Generic[TargetT]):
 
         pending: dict[Future[DeviceScanOutcome], int] = {}
         next_index = 0
+        auth_failures = 0
+        auth_successes = 0
+
+        def submission_limit() -> int:
+            if not auth_guard:
+                return self.concurrency
+            if auth_failures:
+                # Drain connections already in flight, then probe serially.
+                return 1
+            if auth_successes < 2:
+                return min(2, self.concurrency)
+            return self.concurrency
 
         def execute(index: int) -> DeviceScanOutcome:
             item = target_list[index]
@@ -186,7 +199,7 @@ class ScanOrchestrator(Generic[TargetT]):
             max_workers=self.concurrency,
             thread_name_prefix="stig-audit-device",
         ) as executor:
-            while next_index < total and len(pending) < self.concurrency and not cancellation.is_set():
+            while next_index < total and len(pending) < submission_limit() and not cancellation.is_set():
                 future = executor.submit(execute, next_index)
                 pending[future] = next_index
                 next_index += 1
@@ -197,6 +210,12 @@ class ScanOrchestrator(Generic[TargetT]):
                     index = pending.pop(future)
                     outcome = future.result()
                     outcomes_by_index[index] = outcome
+                    if outcome.successful:
+                        auth_successes += 1
+                    if outcome.status == DeviceStatus.AUTH_FAILED:
+                        auth_failures += 1
+                        if auth_failures >= 2:
+                            cancellation.set()
                     completed = len(outcomes_by_index)
                     self._emit(
                         events,
@@ -224,7 +243,7 @@ class ScanOrchestrator(Generic[TargetT]):
 
                 while (
                     next_index < total
-                    and len(pending) < self.concurrency
+                    and len(pending) < submission_limit()
                     and not cancellation.is_set()
                 ):
                     future = executor.submit(execute, next_index)

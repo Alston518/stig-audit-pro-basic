@@ -61,6 +61,16 @@ def test_free_selection_runs_only_chosen_device_and_retains_inventory(basic_ui,t
     assert app.devices.get('1.0','end').strip()==inventory.strip()
 
 
+def test_saved_building_loads_devices_and_profile(basic_ui):
+    app, _, _ = basic_ui
+
+    app.apply_saved_group('building_2_access')
+
+    assert app.devices.get('1.0', 'end').strip() == '198.51.100.25\n198.51.100.26'
+    assert app.selected_addresses == ['198.51.100.25', '198.51.100.26']
+    assert app.profile.get() == 'building_2'
+
+
 def test_licensed_selector_allows_limit_without_removing_unselected_devices(basic_ui,signed_license):
     app,_,_=basic_ui
     _,issue,_=signed_license;issue(maximum=2)
