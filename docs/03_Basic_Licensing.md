@@ -3,7 +3,7 @@
 The 9 October 2026 security update does not change the signed license schema,
 product identifier, production key IDs, feature flags, or Free Basic's
 one-device limit. Report encryption applies to free and licensed use. Basic
-live SSH host-key verification is temporarily disabled for compatibility.
+live SSH verifies saved host keys by default.
 Existing compatible signed Basic licenses remain valid.
 
 ## Free operation

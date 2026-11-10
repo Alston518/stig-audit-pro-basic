@@ -1,20 +1,28 @@
 """Operator-first, read-only STIG audit workflow for the Basic edition."""
 from __future__ import annotations
-import csv, hashlib, ipaddress, json, logging, os, queue, re, threading, uuid, shutil, sys
-from datetime import datetime
+import csv, getpass, hashlib, ipaddress, json, logging, os, queue, re, threading, uuid, shutil, sys
+from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
 from stig_audit_pro.application.audit_service import AuditService
-from stig_audit_pro.core.ssh_runner import DeviceCredentials
+from stig_audit_pro.build_info import load_build_metadata
+from stig_audit_pro.config import APP_VERSION
+from stig_audit_pro.gui.basic_host_keys import HostKeyBatchRequest, HostKeyRequest, ManageHostKeysDialog, ReviewHostKeyBatchDialog, TOFU_BATCH_NOTE, TrustHostKeyDialog
+from stig_audit_pro.gui.protected_reports import ProtectedReportWorkspace, export_readable_batch
+from stig_audit_pro.core.ssh_runner import HOST_KEY_FAILURE_MESSAGES, DeviceCredentials, DeviceTarget
 from stig_audit_pro.core.yaml_loader import ConfigValidationError, load_check_library, load_profile
 from stig_audit_pro.reports.audit_report import build_text_report
 from stig_audit_pro.reports.basic_summary import Filter, STATUSES, CATS, cat, summarize, render_csv, render_html, render_pdf
 from stig_audit_pro.stig.ckl_writer import render_completed_ckl
-from stig_audit_pro.storage.device_groups import DeviceTargetRecord
+from stig_audit_pro.storage.device_groups import DeviceGroup, DeviceGroupStore, DeviceTargetRecord
+from stig_audit_pro.storage.profile_builder import ProfileBuildError, load_profile_data
 from stig_audit_pro.licensing import LicenseImportError, LicensePolicyError
 from stig_audit_pro.licensing.basic_policy import BasicLicensePolicy, normalize_basic_targets
 from stig_audit_pro.infrastructure.security.at_rest import AtRestVault, VaultUnlockError
 from stig_audit_pro.infrastructure.security.basic_artifacts import ProtectedArtifactStore, default_vault_path
+from stig_audit_pro.infrastructure.ssh.host_keys import HostKeyTrustStore
+from stig_audit_pro.infrastructure.ssh.host_key_batch import collect_host_key_batch, enroll_host_key_batch
+from stig_audit_pro.infrastructure.ssh.netmiko_runner import NetmikoRunner
 
 COMMAND_FILES = {
     "show running-config":"show_running_config.txt", "show vtp status":"show_vtp_status.txt",
@@ -47,6 +55,12 @@ def library_names(platform: str, family_choice: str) -> list[str]:
 
 def default_profile_name(platform: str) -> str:
     return DEFAULT_PROFILES[platform]
+
+
+def selected_group_values(group: DeviceGroup) -> tuple[list[str], str | None]:
+    """Return checked addresses and the saved profile for an audit group."""
+
+    return [target.ip for target in group.targets if target.checked], group.profile_name
 
 
 def can_use_sample_outputs(platform: str) -> bool:
@@ -181,8 +195,10 @@ def report_stem(asset, scan_ip: str, families: list[str], when: datetime | None 
 
 def _failed_outcome_text(outcome) -> str:
     """Give operators actionable failures without echoing raw SSH exceptions."""
-    message = (outcome.error_message or "").casefold()
-    if outcome.status.value == "AUTH_FAILED":
+    status = outcome.status.value
+    if status in HOST_KEY_FAILURE_MESSAGES:
+        reason = HOST_KEY_FAILURE_MESSAGES[status]
+    elif status == "AUTH_FAILED":
         reason = "SSH authentication failed; check the account and credentials"
     elif outcome.status.value == "CONNECT_FAILED":
         reason = "SSH connection failed; check the address, port, and reachability"
@@ -198,7 +214,9 @@ def _failed_outcome_text(outcome) -> str:
 def _scan_event_text(event) -> str:
     """Render live progress without displaying untrusted device/SSH errors."""
     status = str(event.status)
-    if status in {"AUTH_FAILED", "CONNECT_FAILED", "COLLECTION_FAILED", "EVALUATION_FAILED", "CANCELLED"}:
+    if status in HOST_KEY_FAILURE_MESSAGES or status in {
+        "AUTH_FAILED", "CONNECT_FAILED", "COLLECTION_FAILED", "EVALUATION_FAILED", "CANCELLED"
+    }:
         return _failed_outcome_text(SimpleNamespace(
             target_ip=event.target_ip,
             status=SimpleNamespace(value=status),
@@ -218,8 +236,10 @@ class BasicApp:
         self.events, self.cancel_event, self.thread = queue.Queue(), threading.Event(), None
         self.last_results,self.last_targets,self.last_families,self.last_run_id=[],[],[],''
         self.last_report_paths, self.last_output_dir = [], None
+        self.report_workspace = ProtectedReportWorkspace()
         self.license_policy = BasicLicensePolicy()
         self.artifacts = ProtectedArtifactStore(vault)
+        self.build_metadata = load_build_metadata()
         self.selected_addresses = ['192.0.2.10']
         self.selection_dialog = None
         self.project_root = Path(user_documents_dir()) / "STIG Audit Pro Basic"
@@ -239,6 +259,7 @@ class BasicApp:
                 destination = self.data_root / item.relative_to(bundled)
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 if not destination.exists(): shutil.copy2(item, destination)
+        self.device_group_store = DeviceGroupStore(self.data_root / "device_groups")
         self._build()
         self.refresh_license_status()
         self._license_timer = self.root.after(30000, self.check_license_timer)
@@ -269,6 +290,15 @@ class BasicApp:
                      text_color=colors["text"], font=ctk.CTkFont(size=25, weight="bold")).pack(anchor="w")
         ctk.CTkLabel(title, text="Read-only collection  •  protected reports  •  operator-controlled export",
                      text_color=colors["muted"]).pack(anchor="w")
+        ctk.CTkLabel(
+            title,
+            text=(
+                f"Build updated {self.build_metadata['date']}  •  "
+                f"v{self.build_metadata['version']}  •  {self.build_metadata['id']}"
+            ),
+            text_color=colors["muted"],
+            font=ctk.CTkFont(size=11),
+        ).pack(anchor="w", pady=(3, 0))
         ctk.CTkLabel(header, text="READ ONLY  ·  ENCRYPTED OUTPUT", text_color=colors["teal"],
                      fg_color=colors["card"], corner_radius=10, padx=14, pady=9,
                      font=ctk.CTkFont(size=12, weight="bold")).pack(side="right", anchor="n", pady=6)
@@ -289,6 +319,7 @@ class BasicApp:
         summary = tabs.add("Summary")
         license_tab = tabs.add("License")
         help_ = tabs.add("Help")
+        setup_tab = tabs.add("Profiles & Sites")
         self._build_summary(summary)
 
         from stig_audit_pro.gui.basic_license_ui import BasicLicensePanel
@@ -301,10 +332,33 @@ class BasicApp:
                      text_color=colors["muted"]).pack(anchor="w", padx=16)
         protected_row = ctk.CTkFrame(result, fg_color=colors["card"], corner_radius=10)
         protected_row.pack(fill="x", padx=12, pady=(12, 0))
-        ctk.CTkButton(protected_row, text="Open protected report", command=self.open_protected_report,
+        ctk.CTkButton(protected_row, text="Import protected reports", command=self.import_protected_report,
                       fg_color=colors["blue"]).pack(side="left", padx=8, pady=8)
-        ctk.CTkButton(protected_row, text="Export readable copy", command=self.export_protected_report,
+        ctk.CTkButton(protected_row, text="View encrypted manifest", command=self.view_protected_manifest,
                       fg_color=colors["raised"], hover_color=colors["border"]).pack(side="left", padx=4, pady=8)
+        ctk.CTkButton(protected_row, text="Open protected report folder", command=self.open_protected_report,
+                      fg_color=colors["blue"]).pack(side="left", padx=8, pady=8)
+        ctk.CTkButton(protected_row, text="Export readable reports", command=self.export_protected_report,
+                      fg_color=colors["raised"], hover_color=colors["border"]).pack(side="left", padx=4, pady=8)
+        ctk.CTkButton(protected_row, text="Clear imported", command=self.clear_protected_reports,
+                      fg_color=colors["raised"], hover_color=colors["border"]).pack(side="left", padx=4, pady=8)
+        self.report_count_label = ctk.CTkLabel(protected_row, text="0 reports imported", text_color=colors["muted"])
+        self.report_count_label.pack(side="right", padx=10)
+
+        report_selector_row = ctk.CTkFrame(result, fg_color=colors["card"], corner_radius=10)
+        report_selector_row.pack(fill="x", padx=12, pady=(8, 0))
+        ctk.CTkLabel(report_selector_row, text="Device / IP", text_color=colors["muted"]).pack(side="left", padx=(10, 4), pady=8)
+        self.report_device_menu = ctk.CTkOptionMenu(
+            report_selector_row, values=["No reports imported"], command=self._on_report_device_change,
+            state="disabled", width=240,
+        )
+        self.report_device_menu.pack(side="left", padx=4, pady=8)
+        ctk.CTkLabel(report_selector_row, text="Report type", text_color=colors["muted"]).pack(side="left", padx=(14, 4), pady=8)
+        self.report_type_menu = ctk.CTkOptionMenu(
+            report_selector_row, values=["—"], command=lambda _value: self._display_selected_report(),
+            state="disabled", width=300,
+        )
+        self.report_type_menu.pack(side="left", padx=4, pady=8)
         self.results_box = ctk.CTkTextbox(result, fg_color=colors["card"], text_color=colors["text"])
         self.results_box.pack(fill="both", expand=True, padx=12, pady=12)
 
@@ -314,8 +368,9 @@ class BasicApp:
             "3. For Live SSH, confirm the device address, port, and account before starting.\n"
             "4. Choose a matching blank CKL template if you want checklist output.\n"
             "5. Start the audit. The run card shows the encrypted file count and exact output folder.\n"
-            "6. Open a protected report in Results, or explicitly export an unencrypted copy.\n\n"
-            "Basic currently does not enforce known_hosts host-key verification. Audit and summary files use .sapenc.\n"
+            "6. Import protected reports in Results, choose the device/IP and TXT or CKL type, then explicitly export readable copies. View encrypted manifest opens the run manifest in memory.\n\n"
+            "Live SSH verifies device host keys by default. You may disable verification for a controlled compatibility test, but that removes protection against connecting to an impersonated device. Audit and summary files use .sapenc.\n"
+            "For new switches, review all listed fingerprints and approve once without entering a note, or cancel the scan. Use Manage SSH host keys in Audit Setup to view, select all, or remove several saved keys at once. A changed key blocks the audit.\n"
             "Credentials and the audit-data passphrase are not saved by the app; SSH credentials remain in memory during a live run.\n"
             "Editable checks and profiles are beside the application in data. Review starter checks against the approved benchmark."
         )
@@ -336,6 +391,23 @@ class BasicApp:
         self.selection_label = ctk.CTkLabel(selection_row, text="", justify="left", anchor="w",
                                             wraplength=580, text_color=colors["muted"])
         self.selection_label.pack(side="left", fill="x", expand=True, padx=10)
+
+        group_row = ctk.CTkFrame(targets_card, fg_color=colors["raised"], corner_radius=8)
+        group_row.pack(fill="x", padx=14, pady=(0, 10))
+        ctk.CTkLabel(group_row, text="Saved building", width=120, anchor="w",
+                     text_color=colors["muted"]).pack(side="left", padx=8, pady=8)
+        self.saved_group = ctk.CTkOptionMenu(
+            group_row,
+            values=["Manual device list"] + self._group_names(),
+            command=self.apply_saved_group,
+        )
+        self.saved_group.pack(side="left", fill="x", expand=True, padx=4, pady=8)
+        self.saved_group.set("Manual device list")
+        self.saved_group_summary = ctk.CTkLabel(
+            group_row, text="Choose a saved building to load its devices and profile.",
+            anchor="w", text_color=colors["muted"], wraplength=430,
+        )
+        self.saved_group_summary.pack(side="left", fill="x", expand=True, padx=8)
 
         setup_card = self._audit_card(audit, "02  AUDIT SETUP", "Choose the platform, STIG family, mode, and site profile.")
         row = ctk.CTkFrame(setup_card, fg_color="transparent")
@@ -366,6 +438,27 @@ class BasicApp:
         self.password.pack(side="left", fill="x", expand=True, padx=4)
         self.secret = ctk.CTkEntry(cred, placeholder_text="Enable secret (optional)", show="•")
         self.secret.pack(side="left", fill="x", expand=True, padx=4)
+        self.verify_host_keys = ctk.BooleanVar(value=True)
+        ssh_options = ctk.CTkFrame(setup_card, fg_color="transparent")
+        ssh_options.pack(fill="x", padx=16, pady=(0, 10))
+        self.host_key_check = ctk.CTkCheckBox(
+            ssh_options,
+            text="Verify SSH host keys (recommended)",
+            variable=self.verify_host_keys,
+            command=self._on_host_key_toggle,
+            text_color=colors["text"],
+            hover_color=colors["blue"],
+        )
+        self.host_key_check.pack(side="left")
+        ctk.CTkButton(
+            ssh_options, text="Manage SSH host keys", command=self.manage_host_keys,
+            fg_color=colors["raised"], hover_color=colors["border"],
+        ).pack(side="left", padx=(12, 0))
+        self.host_key_banner = ctk.CTkLabel(
+            setup_card, text="", anchor="w", text_color=colors["red"],
+            font=ctk.CTkFont(weight="bold"),
+        )
+        self.host_key_banner.pack(fill="x", padx=16, pady=(0, 8))
 
         template_card = self._audit_card(audit, "03  BLANK CHECKLIST TEMPLATES", "Assign each platform its own approved CKL template.")
         self.template_tabs = ctk.CTkTabview(template_card, height=170, fg_color=colors["card"])
@@ -437,6 +530,16 @@ class BasicApp:
                                                  fg_color=colors["card"])
         self.view_latest_button.pack(side="left", padx=4)
 
+        from stig_audit_pro.gui.site_setup import SiteSetupPanel
+
+        self.site_setup_panel = SiteSetupPanel(
+            setup_tab,
+            profiles_dir=self.data_root / "profiles",
+            groups_dir=self.data_root / "device_groups",
+            on_profiles_changed=self.refresh_profile_controls,
+            on_group_saved=self.refresh_group_controls,
+        )
+
     def _audit_card(self, parent, title: str, subtitle: str):
         ctk = self.ctk
         card = ctk.CTkFrame(parent, fg_color=self.colors["card"], corner_radius=12,
@@ -447,11 +550,32 @@ class BasicApp:
         ctk.CTkLabel(card, text=subtitle, anchor="w", text_color=self.colors["muted"]).pack(fill="x", padx=14)
         return card
 
+    def _on_host_key_toggle(self):
+        enabled = bool(self.verify_host_keys.get())
+        if not enabled and not self.messagebox.askyesno(
+            "Disable SSH host-key verification?",
+            "The device identity will not be verified. Continue only for an approved compatibility test?",
+            parent=self.root,
+        ):
+            self.verify_host_keys.set(True)
+            enabled = True
+        else:
+            logging.getLogger("stig_audit_pro.activity").warning(
+                "HOST_KEY_VERIFICATION_%s operator=%s",
+                "ENABLED" if enabled else "DISABLED", getpass.getuser(),
+            )
+        self.host_key_banner.configure(
+            text="" if enabled else "WARNING: SSH HOST-KEY VERIFICATION IS OFF"
+        )
+        self.update_mode_badge()
+
     def update_mode_badge(self):
         live = self.mode.get() == "Live SSH"
-        label = ("LIVE SSH  ·  host-key verification disabled  ·  network device access" if live
+        checking = bool(self.verify_host_keys.get()) if hasattr(self, "verify_host_keys") else True
+        label = (("LIVE SSH  ·  host-key verification enabled  ·  network device access" if checking
+                  else "LIVE SSH  ·  host-key verification DISABLED  ·  compatibility mode") if live
                  else "DEMO MODE  ·  bundled IOS XE evidence  ·  no device connection")
-        self.mode_badge.configure(text=label, text_color=self.colors["amber"] if live else self.colors["teal"])
+        self.mode_badge.configure(text=label, text_color=(self.colors["amber"] if live else self.colors["teal"]))
 
     def update_output_hint(self):
         self.output_hint.configure(text=f"Encrypted .sapenc files will be saved in: {self.output_dir.get().strip() or '[choose folder]'}")
@@ -507,15 +631,70 @@ class BasicApp:
             for ext,enabled,writer in choices:
                 if enabled:
                     paths.append(self.artifacts.save(folder/f'{stem}.{ext}',writer(report)))
+            releases = sorted({row.stig_release for row in self.last_results if row.stig_release})
+            manifest = {
+                'run_id': self.last_run_id,
+                'operator': getpass.getuser(),
+                'tool_version': APP_VERSION,
+                'stig_release': ', '.join(releases) or 'Unknown',
+                'timestamp': datetime.now(timezone.utc).isoformat(),
+                'file_hashes': {
+                    path.name: hashlib.sha256(self.artifacts.read(path)).hexdigest()
+                    for path in paths
+                },
+            }
+            manifest_path = self.artifacts.save_manifest(
+                folder / f'{stem}.manifest.json',
+                (json.dumps(manifest, indent=2, sort_keys=True) + '\n').encode('utf-8'),
+            )
         except Exception as exc:
             logging.getLogger(__name__).exception('Basic summary export failed')
             detail=f'Summary export stopped ({type(exc).__name__}). {len(paths)} encrypted file(s) saved.'
             if paths:detail+='\n'+'\n'.join(str(path) for path in paths)
             self.messagebox.showerror('Summary export incomplete',detail)
             return paths
-        self.preview_summary();self.messagebox.showinfo('Protected summary saved','Encrypted files created:\n'+'\n'.join(str(p) for p in paths));return paths
+        self.preview_summary();self.messagebox.showinfo('Protected summary saved','Encrypted files created:\n'+'\n'.join(str(p) for p in paths)+f'\nEncrypted manifest: {manifest_path}');return paths
 
     def _profiles(self): return [p.stem for p in sorted((self.data_root/"profiles").glob("*.yaml"))] or ["base_iosxe_access"]
+    def _group_names(self):
+        return self.device_group_store.list_groups()
+
+    def refresh_profile_controls(self):
+        values = self._profiles()
+        current = self.profile.get()
+        self.profile.configure(values=values)
+        if current not in values:
+            self.profile.set(default_profile_name(self.platform.get()))
+        self.update_paths()
+
+    def refresh_group_controls(self, selected: str | None = None):
+        values = ["Manual device list"] + self._group_names()
+        self.saved_group.configure(values=values)
+        if selected and selected in values:
+            self.saved_group.set(selected)
+
+    def apply_saved_group(self, name: str):
+        if name == "Manual device list":
+            self.saved_group_summary.configure(text="Manual device list selected. Enter devices above.")
+            return
+        try:
+            group = self.device_group_store.load_group(name)
+            addresses, profile_name = selected_group_values(group)
+            if not addresses:
+                raise ValueError("The saved group has no checked devices")
+            self.devices.delete("1.0", "end")
+            self.devices.insert("1.0", "\n".join(addresses))
+            self.selected_addresses = list(addresses)
+            if profile_name and profile_name in self._profiles():
+                self.profile.set(profile_name)
+            self.sync_selected_devices()
+            self.update_paths()
+            self.saved_group_summary.configure(
+                text=f"{len(addresses)} device(s) · profile {profile_name or '[none]'}"
+            )
+        except (OSError, ValueError) as exc:
+            self.saved_group_summary.configure(text="Could not load saved building")
+            self.messagebox.showerror("Saved building unavailable", str(exc))
     def sync_selected_devices(self):
         addresses,_=parse_device_text(self.devices.get('1.0','end'))
         addresses=list(normalize_basic_targets(addresses))
@@ -553,9 +732,145 @@ class BasicApp:
         self.refresh_license_status()
         self.messagebox.showinfo('License imported','The signed license is installed. Use Select devices to choose your audit batch.')
     def open_protected_report(self):
-        selected=self.filedialog.askopenfilename(title='Open protected Basic report',filetypes=[('Protected Basic report','*.sapenc')])
-        if not selected:return
-        self._display_protected_report(selected)
+        self.open_output_folder()
+
+    def _report_folder(self):
+        folder = self.last_output_dir
+        if folder is None and hasattr(self, 'output_dir'):
+            raw_folder = self.output_dir.get().strip()
+            folder = Path(raw_folder).expanduser() if raw_folder else None
+        return Path(folder) if folder is not None else None
+
+    def _ensure_report_workspace(self):
+        if not hasattr(self, 'report_workspace'):
+            self.report_workspace = ProtectedReportWorkspace()
+        return self.report_workspace
+
+    def _refresh_report_selectors(self, select_path=None):
+        workspace = self._ensure_report_workspace()
+        reports = workspace.reports()
+        devices = workspace.devices()
+        if hasattr(self, 'report_count_label'):
+            noun = 'report' if len(reports) == 1 else 'reports'
+            self.report_count_label.configure(text=f'{len(reports)} {noun} imported')
+        if not hasattr(self, 'report_device_menu') or not hasattr(self, 'report_type_menu'):
+            return
+        if not devices:
+            self.report_device_menu.configure(values=['No reports imported'], state='disabled')
+            self.report_device_menu.set('No reports imported')
+            self.report_type_menu.configure(values=['—'], state='disabled')
+            self.report_type_menu.set('—')
+            return
+
+        selected_report = None
+        if select_path is not None:
+            wanted = Path(select_path).expanduser().resolve()
+            selected_report = next((report for report in reports if report.path == wanted), None)
+        current_device = selected_report.device if selected_report else self.report_device_menu.get()
+        if current_device not in devices:
+            current_device = devices[0]
+        self.report_device_menu.configure(values=list(devices), state='normal')
+        self.report_device_menu.set(current_device)
+        options = workspace.type_options(current_device)
+        self.report_type_menu.configure(values=list(options), state='normal')
+        chosen = options[0]
+        if selected_report:
+            chosen = next(
+                (option for option in options if workspace.resolve(current_device, option).path == selected_report.path),
+                chosen,
+            )
+        self.report_type_menu.set(chosen)
+
+    def _on_report_device_change(self, device):
+        workspace = self._ensure_report_workspace()
+        options = workspace.type_options(device)
+        if not options:
+            return
+        self.report_type_menu.configure(values=list(options), state='normal')
+        self.report_type_menu.set(options[0])
+        self._display_selected_report()
+
+    def import_protected_report(self):
+        folder = self._report_folder()
+        options = {
+            'title': 'Import protected Basic report',
+            'filetypes': [('Protected Basic report', '*.sapenc')],
+        }
+        if folder is not None:
+            options['initialdir'] = str(folder)
+        selected = self.filedialog.askopenfilenames(**options)
+        if not selected:
+            return
+        manifests = [path for path in selected if Path(path).name.endswith('.manifest.json.sapenc')]
+        reports = [path for path in selected if not Path(path).name.endswith('.manifest.json.sapenc')]
+        if not reports:
+            self._display_protected_manifest(manifests[0])
+            return
+        batch = self._ensure_report_workspace().add(reports)
+        self._refresh_report_selectors(select_path=reports[0])
+        if batch.rejected:
+            details = '\n'.join(f'{path.name}: {reason}' for path, reason in batch.rejected[:5])
+            extra = len(batch.rejected) - 5
+            if extra > 0:
+                details += f'\n...and {extra} more'
+            self.messagebox.showwarning('Some reports were not imported', details)
+        if batch.added or self.report_workspace.reports():
+            self._display_selected_report()
+
+    def view_protected_manifest(self):
+        folder = self._report_folder()
+        options = {
+            'title': 'View encrypted audit manifest',
+            'filetypes': [('Encrypted audit manifest', '*.manifest.json.sapenc')],
+        }
+        if folder is not None:
+            options['initialdir'] = str(folder)
+        selected = self.filedialog.askopenfilename(**options)
+        if selected:
+            self._display_protected_manifest(selected)
+
+    def _display_protected_manifest(self, selected):
+        try:
+            raw = json.loads(self.artifacts.read_manifest(selected).decode('utf-8'))
+            if not isinstance(raw, dict) or not isinstance(raw.get('file_hashes'), dict):
+                raise ValueError('The encrypted manifest has an invalid format')
+            lines = [
+                'ENCRYPTED AUDIT MANIFEST',
+                f"Run ID: {raw.get('run_id', 'Unknown')}",
+                f"Operator: {raw.get('operator', 'Unknown')}",
+                f"Tool version: {raw.get('tool_version', 'Unknown')}",
+                f"STIG release: {raw.get('stig_release', 'Unknown')}",
+                f"Timestamp: {raw.get('timestamp', 'Unknown')}",
+                f"Files: {len(raw['file_hashes'])}",
+                '', 'SHA-256 FILE HASHES',
+            ]
+            lines.extend(f'{name}  {digest}' for name, digest in sorted(raw['file_hashes'].items()))
+            preview = '\n'.join(lines)
+            if len(preview) > 2_000_000:
+                preview = preview[:2_000_000] + '\n\n[Preview limited to the first 2 MB]'
+            self.results_box.delete('1.0', 'end')
+            self.results_box.insert('end', preview)
+            if hasattr(self, 'tabs'):
+                self.tabs.set('Results')
+        except (OSError, ValueError, UnicodeError, TypeError) as exc:
+            self.messagebox.showerror('Could not open encrypted manifest', str(exc))
+
+    def _display_selected_report(self):
+        workspace = self._ensure_report_workspace()
+        if not workspace.reports() or not hasattr(self, 'report_device_menu'):
+            return
+        try:
+            report = workspace.resolve(self.report_device_menu.get(), self.report_type_menu.get())
+        except KeyError:
+            return
+        self._display_protected_report(report.path)
+
+    def clear_protected_reports(self):
+        self._ensure_report_workspace().clear()
+        if hasattr(self, 'results_box'):
+            self.results_box.delete('1.0', 'end')
+            self.results_box.insert('end', 'Import protected reports to view verified text in memory.')
+        self._refresh_report_selectors()
 
     def _display_protected_report(self, selected):
         try:
@@ -573,10 +888,15 @@ class BasicApp:
     def view_latest_protected_report(self):
         for path in reversed(self.last_report_paths):
             if Path(path).is_file() and '.txt.sapenc' in Path(path).name.lower():
-                self._display_protected_report(path)
+                self._ensure_report_workspace().add([path])
+                self._refresh_report_selectors(select_path=path)
+                self._display_selected_report()
                 return
         if self.last_report_paths:
-            self._display_protected_report(self.last_report_paths[-1])
+            path = self.last_report_paths[-1]
+            self._ensure_report_workspace().add([path])
+            self._refresh_report_selectors(select_path=path)
+            self._display_selected_report()
         else:
             self.messagebox.showinfo('No report yet', 'This run did not create a protected report.')
 
@@ -589,16 +909,99 @@ class BasicApp:
             os.startfile(str(folder))
         except OSError as exc:
             self.messagebox.showerror('Could not open output folder', f'{type(exc).__name__}: {folder}')
+    def _choose_reports_for_export(self, reports):
+        reports = tuple(reports)
+        if len(reports) <= 1:
+            return reports
+        from tkinter import BooleanVar
+        dialog = self.ctk.CTkToplevel(self.root)
+        dialog.title('Select protected reports to export')
+        dialog.geometry('760x560')
+        dialog.transient(self.root)
+        dialog.grab_set()
+        self.ctk.CTkLabel(
+            dialog, text='Choose one, some, or all imported reports',
+            font=self.ctk.CTkFont(size=17, weight='bold'),
+        ).pack(anchor='w', padx=16, pady=(16, 4))
+        self.ctk.CTkLabel(
+            dialog, text='Readable copies will be created only after you confirm the security warning.',
+            text_color=self.colors['muted'],
+        ).pack(anchor='w', padx=16, pady=(0, 8))
+        list_frame = self.ctk.CTkScrollableFrame(dialog, fg_color=self.colors['card'])
+        list_frame.pack(fill='both', expand=True, padx=16, pady=8)
+        variables = []
+        for report in reports:
+            variable = BooleanVar(value=True)
+            variables.append(variable)
+            self.ctk.CTkCheckBox(
+                list_frame,
+                text=f'{report.device}  •  {report.report_type}  •  {report.original_name}',
+                variable=variable,
+            ).pack(anchor='w', fill='x', padx=8, pady=5)
+        selected = []
+
+        def set_all(value):
+            for variable in variables:
+                variable.set(value)
+
+        def apply_selection():
+            chosen = [report for report, variable in zip(reports, variables) if variable.get()]
+            if not chosen:
+                self.messagebox.showinfo('Select reports', 'Select at least one protected report to export.')
+                return
+            selected.extend(chosen)
+            dialog.destroy()
+
+        actions = self.ctk.CTkFrame(dialog, fg_color='transparent')
+        actions.pack(fill='x', padx=12, pady=(0, 12))
+        self.ctk.CTkButton(actions, text='Select all', command=lambda: set_all(True)).pack(side='left', padx=4)
+        self.ctk.CTkButton(actions, text='Clear selection', command=lambda: set_all(False)).pack(side='left', padx=4)
+        self.ctk.CTkButton(actions, text='Cancel', command=dialog.destroy).pack(side='right', padx=4)
+        self.ctk.CTkButton(actions, text='Export selected', command=apply_selection,
+                           fg_color=self.colors['blue']).pack(side='right', padx=4)
+        self.root.wait_window(dialog)
+        return tuple(selected)
+
     def export_protected_report(self):
-        selected=self.filedialog.askopenfilename(title='Select protected Basic report',filetypes=[('Protected Basic report','*.sapenc')])
-        if not selected:return
-        original_name=Path(selected).stem
-        destination=self.filedialog.asksaveasfilename(title='Export readable copy',initialfile=original_name,defaultextension=Path(original_name).suffix)
-        if not destination:return
-        if not self.messagebox.askyesno('Export readable report','This creates an unencrypted file that other applications can read. Continue?'):return
-        try:self.artifacts.export(selected,destination)
-        except (OSError,ValueError) as exc:self.messagebox.showerror('Export failed',str(exc));return
-        self.messagebox.showinfo('Readable copy exported',destination)
+        workspace = self._ensure_report_workspace()
+        folder = self._report_folder()
+        if not workspace.reports():
+            options = {'title': 'Select protected Basic reports', 'filetypes': [('Protected Basic report', '*.sapenc')]}
+            if folder is not None:
+                options['initialdir'] = str(folder)
+            selected_paths = self.filedialog.askopenfilenames(**options)
+            if not selected_paths:
+                return
+            batch = workspace.add(selected_paths)
+            self._refresh_report_selectors(select_path=selected_paths[0])
+            if batch.rejected:
+                details = '\n'.join(f'{path.name}: {reason}' for path, reason in batch.rejected[:5])
+                self.messagebox.showwarning('Some reports were not selected', details)
+        selected_reports = self._choose_reports_for_export(workspace.reports())
+        if not selected_reports:
+            return
+        directory_options = {'title': 'Choose folder for readable reports'}
+        if folder is not None:
+            directory_options['initialdir'] = str(folder)
+        destination = self.filedialog.askdirectory(**directory_options)
+        if not destination:
+            return
+        count = len(selected_reports)
+        if not self.messagebox.askyesno(
+            'Export readable reports',
+            f'This creates {count} unencrypted file(s) that other applications can read. Continue?',
+        ):
+            return
+        result = export_readable_batch(self.artifacts, selected_reports, destination)
+        message = f'{len(result.exported)} readable report(s) exported to {destination}.'
+        if result.failed:
+            failures = '\n'.join(f'{report.original_name}: {reason}' for report, reason in result.failed[:5])
+            extra = len(result.failed) - 5
+            if extra > 0:
+                failures += f'\n...and {extra} more'
+            self.messagebox.showwarning('Readable export partially completed', f'{message}\n\nNot exported:\n{failures}')
+        else:
+            self.messagebox.showinfo('Readable reports exported', message)
     def on_platform_change(self, platform):
         self.profile.set(default_profile_name(platform))
         self.template_tabs.set(platform)
@@ -633,6 +1036,65 @@ class BasicApp:
         if self.thread and self.thread.is_alive():
             self.cancel_event.set()
             self.status.configure(text='Cancellation requested; waiting for active device work.')
+
+    def manage_host_keys(self):
+        if self.thread and self.thread.is_alive():
+            self.messagebox.showinfo("Audit running", "Finish or cancel the audit before removing SSH host keys.", parent=self.root)
+            return
+        try:
+            ManageHostKeysDialog(self.root, HostKeyTrustStore())
+        except (OSError, ValueError):
+            self.messagebox.showerror("Could not open trusted keys", "Check access to the local SSH trust store.", parent=self.root)
+
+    def _request_host_key_approval(self, target, key, cancellation):
+        if cancellation.is_set():
+            return None
+        request = HostKeyRequest(target, key, cancellation)
+        self.events.put(request)
+        while not request.done.wait(0.1):
+            if cancellation.is_set():
+                return None
+        return request.approval
+
+    def _request_host_key_batch_approval(self, plan, cancellation):
+        if cancellation.is_set():
+            return None
+        request = HostKeyBatchRequest(plan, cancellation)
+        self.events.put(request)
+        while not request.done.wait(0.1):
+            if cancellation.is_set():
+                return None
+        return request.approval_note
+
+    def _prepare_host_key_batch(self, targets, trust_store, run_id):
+        self.events.put(SimpleNamespace(message=f"Discovering SSH host keys for {len(targets)} device(s)…"))
+        plan = collect_host_key_batch(targets, trust_store, self.cancel_event, concurrency=3)
+        if self.cancel_event.is_set():
+            return
+        if plan.changed:
+            logging.getLogger("stig_audit_pro.activity").warning(
+                "HOST_KEY_BATCH_CHANGED_BLOCKED run_id=%s count=%s", run_id, len(plan.changed),
+            )
+        if plan.failed:
+            logging.getLogger("stig_audit_pro.activity").warning(
+                "HOST_KEY_BATCH_DISCOVERY_FAILED run_id=%s count=%s", run_id, len(plan.failed),
+            )
+        if not plan.unknown:
+            return
+        note = self._request_host_key_batch_approval(plan, self.cancel_event)
+        if not note or self.cancel_event.is_set():
+            self.cancel_event.set()
+            self.events.put(SimpleNamespace(message="Host-key review cancelled; audit stopped."))
+            return
+        enrolled = enroll_host_key_batch(
+            trust_store, plan.unknown, verification_note=note, operator=getpass.getuser(),
+        )
+        logging.getLogger("stig_audit_pro.activity").warning(
+            "HOST_KEY_BATCH_APPROVED run_id=%s operator=%s count=%s method=%s",
+            run_id, getpass.getuser(), len(enrolled),
+            "first_use_unverified" if note == TOFU_BATCH_NOTE else "operator_note",
+        )
+        self.events.put(SimpleNamespace(message=f"Saved {len(enrolled)} reviewed SSH host key(s); starting strict SSH audit."))
 
     def browse_output(self):
         p=self.filedialog.askdirectory()
@@ -714,13 +1176,16 @@ class BasicApp:
             creds = None
         self.thread = threading.Thread(
             target=self._run,
-            args=(targets,checks,profile,creds,families,mode,templates,make_txt,make_ckl,output_dir),
+            args=(targets,checks,profile,creds,families,mode,templates,make_txt,make_ckl,output_dir,
+                  bool(self.verify_host_keys.get()), self._request_host_key_approval),
             daemon=True,
         )
         self.thread.start()
         self.root.after(150,self.poll)
-    def _run(self,targets,checks,profile,creds,families,mode,templates,make_txt,make_ckl,output_dir):
+    def _run(self,targets,checks,profile,creds,families,mode,templates,make_txt,make_ckl,output_dir,
+             verify_host_key=True,approve_unknown=None):
         written = []
+        manifest_path = None
         run_id = str(uuid.uuid4())
         stage = 'starting audit'
         result = None
@@ -729,9 +1194,16 @@ class BasicApp:
             stage = 'validating license'
             addresses=self.license_policy.validate((target.ip for target in targets),families,make_txt,make_ckl)
             targets=[DeviceTargetRecord(ip=ip) for ip in addresses]
-            service=AuditService(); kwargs=dict(run_id=run_id,targets=targets,checks=checks,profile_provider=lambda _:profile,event_queue=self.events,cancel_event=self.cancel_event)
+            if mode == "Live SSH" and verify_host_key and approve_unknown is not None:
+                trust_store = HostKeyTrustStore()
+                stage = 'reviewing SSH host keys'
+                self._prepare_host_key_batch([DeviceTarget(ip=target.ip) for target in targets], trust_store, run_id)
+                service = AuditService(runner_factory=lambda: NetmikoRunner(trust_store, approve_unknown=approve_unknown))
+            else:
+                service = AuditService()
+            kwargs=dict(run_id=run_id,targets=targets,checks=checks,profile_provider=lambda _:profile,event_queue=self.events,cancel_event=self.cancel_event)
             stage = 'collecting and evaluating devices'
-            result=service.run_offline(output_loader=sample_outputs,**kwargs) if mode=="Sample outputs" else service.run_live(credentials=creds,**kwargs)
+            result=service.run_offline(output_loader=sample_outputs,**kwargs) if mode=="Sample outputs" else service.run_live(credentials=creds,verify_host_key=verify_host_key,**kwargs)
             # Export is a separate licensed operation; expiry or replacement may have occurred while collecting.
             stage = 'validating license for export'
             self.license_policy.validate(addresses,families,make_txt,make_ckl)
@@ -749,6 +1221,29 @@ class BasicApp:
                     for family in families:
                         template=templates[family]
                         subset=family_results([r for r in result.results if r.ip==ip],family); dest=output_dir/f"{report_stem(asset, ip, [family])}_{run_id[:8]}.ckl";content=render_completed_ckl(template,subset,asset);written.append(str(self.artifacts.save(dest,content)))
+            if written:
+                stage = 'saving encrypted report manifest'
+                releases = sorted({
+                    str(value) for value in (
+                        *[getattr(row, 'stig_release', None) for row in result.results],
+                        *[getattr(check, 'source_release', None) for check in checks],
+                    ) if value
+                })
+                manifest = {
+                    'run_id': run_id,
+                    'operator': getpass.getuser(),
+                    'tool_version': APP_VERSION,
+                    'stig_release': ', '.join(releases) or 'Unknown',
+                    'timestamp': datetime.now(timezone.utc).isoformat(),
+                    'file_hashes': {
+                        Path(path).name: hashlib.sha256(self.artifacts.read(path)).hexdigest()
+                        for path in written
+                    },
+                }
+                manifest_path = self.artifacts.save_manifest(
+                    output_dir / f'audit_{run_id}.manifest.json',
+                    (json.dumps(manifest, indent=2, sort_keys=True) + '\n').encode('utf-8'),
+                )
             failed=[outcome for outcome in result.summary.outcomes if not outcome.successful]
             if not written:
                 state="cancelled" if result.summary.cancelled_count and not result.summary.failure_count else "failed"
@@ -758,6 +1253,7 @@ class BasicApp:
             else:
                 message=f"Completed. {len(written)} encrypted file(s) written to {output_dir.resolve()}."
             if written: message+="\n"+"\n".join(written)
+            if manifest_path: message+=f"\nEncrypted manifest: {manifest_path}"
             if failed: message+="\nDevice outcomes:\n"+"\n".join(_failed_outcome_text(outcome) for outcome in failed)
             run_state = 'completed' if written and not failed else ('partial' if written else state)
             self.events.put(SimpleNamespace(
@@ -807,12 +1303,30 @@ class BasicApp:
         try:
             while True:
                 e=self.events.get_nowait()
+                if isinstance(e, HostKeyBatchRequest):
+                    try:
+                        if not e.cancellation.is_set():
+                            e.approval_note = ReviewHostKeyBatchDialog(self.root, e).result
+                    finally:
+                        e.done.set()
+                    continue
+                if isinstance(e, HostKeyRequest):
+                    try:
+                        if not e.cancellation.is_set():
+                            e.approval = TrustHostKeyDialog(self.root, e).result
+                    finally:
+                        e.done.set()
+                    continue
                 message = _scan_event_text(e) if hasattr(e, 'event_type') else e.message
                 if message:
                     self.status.configure(text=message.splitlines()[0])
                     self.results_box.insert("end",message+"\n")
                 if hasattr(e, 'run_state') and hasattr(self, 'run_state_label'):
                     self._apply_run_completion(e)
+                    if e.run_state == 'failed':
+                        self.messagebox.showerror('Audit failed', e.message)
+                    elif e.run_state == 'partial':
+                        self.messagebox.showwarning('Audit partially completed', e.message)
                 if hasattr(e,'summary_results'):
                     self.last_results=e.summary_results;self.last_targets=e.summary_targets;self.last_families=e.summary_families;self.last_run_id=e.summary_run_id
                     self.summary_device.configure(values=['All devices']+sorted(set(e.summary_targets)));self.summary_device.set('All devices')

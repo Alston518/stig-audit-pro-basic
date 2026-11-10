@@ -2,6 +2,8 @@
 schema_version: 1
 library_name: ios_l2
 library_version: 2026.09-starter
+stig_release: V3R2 (2026)
+validation_status: unvalidated
 checks:
 - vuln_id: V-220623
   stig_id: CISC-L2-000020

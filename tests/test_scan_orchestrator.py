@@ -117,3 +117,71 @@ def test_orchestrator_rejects_out_of_range_concurrency():
             assert "between 1 and 20" in str(exc)
         else:  # pragma: no cover - explicit assertion message
             raise AssertionError(f"concurrency {value} was accepted")
+
+
+def test_default_concurrency_is_three():
+    assert ScanOrchestrator().concurrency == 3
+
+
+def test_two_auth_failures_stop_queued_devices():
+    started = []
+
+    def worker(target, _cancel, _report):
+        started.append(target)
+        return DeviceScanOutcome(target, DeviceStatus.AUTH_FAILED)
+
+    targets = [f"192.0.2.{index}" for index in range(1, 7)]
+    summary = ScanOrchestrator(concurrency=1).run(
+        run_id=RUN_ID, targets=targets, worker=worker,
+    )
+    assert started == targets[:2]
+    assert [outcome.status for outcome in summary.outcomes[2:]] == [
+        DeviceStatus.CANCELLED
+    ] * 4
+
+
+def test_wrong_batch_credentials_stop_at_two_failures_with_default_concurrency():
+    started = []
+
+    def worker(target, _cancel, _report):
+        started.append(target)
+        if target != "192.0.2.1":
+            # Let the first failure finish while other connections are in flight.
+            time.sleep(0.08)
+        return DeviceScanOutcome(target, DeviceStatus.AUTH_FAILED)
+
+    targets = [f"192.0.2.{index}" for index in range(1, 9)]
+    summary = ScanOrchestrator().run(
+        run_id=RUN_ID, targets=targets, worker=worker, auth_guard=True,
+    )
+
+    assert summary.failure_count == 2
+    assert started == targets[:2]
+    assert summary.cancelled_count == len(targets) - 2
+
+
+def test_auth_guard_uses_three_workers_after_successful_probe():
+    active = 0
+    high_water = 0
+    lock = threading.Lock()
+    barrier = threading.Barrier(3)
+
+    def worker(target, _cancel, _report):
+        nonlocal active, high_water
+        if target in {"192.0.2.1", "192.0.2.2"}:
+            return DeviceScanOutcome(target)
+        with lock:
+            active += 1
+            high_water = max(high_water, active)
+        barrier.wait(timeout=2)
+        with lock:
+            active -= 1
+        return DeviceScanOutcome(target)
+
+    ScanOrchestrator().run(
+        run_id=RUN_ID,
+        targets=[f"192.0.2.{index}" for index in range(1, 6)],
+        worker=worker,
+        auth_guard=True,
+    )
+    assert high_water == 3

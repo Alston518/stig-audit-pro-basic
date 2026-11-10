@@ -1,3 +1,7 @@
+HISTORICAL RELEASE NOTES — 9 OCTOBER 2026
+The current 10 November package has host-key verification enabled by default.
+See README.md and BUILD_INFO.txt for current status.
+
 STIG AUDIT BASIC - REPORT, SECURITY, AND INTERFACE UPDATE
 9 October 2026
 

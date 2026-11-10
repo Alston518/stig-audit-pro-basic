@@ -46,6 +46,7 @@ def build_text_report(
     lines.extend(
         [
             _field("Generated", generated.astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")),
+            _field("STIG release", ", ".join(sorted({r.stig_release for r in results if r.stig_release})) or "Unknown"),
             _field("Devices", str(len(device_keys))),
             _field("Checks", str(len(results))),
             _field("Automated compliance", f"{compliance}%"),
@@ -142,6 +143,7 @@ def write_csv_report(results: list[CheckResult], path: str | Path) -> Path:
                 "hostname",
                 "vuln_id",
                 "stig_family",
+                "stig_release",
                 "severity",
                 "status",
                 "title",
@@ -161,6 +163,7 @@ def write_csv_report(results: list[CheckResult], path: str | Path) -> Path:
                     "hostname": result.hostname,
                     "vuln_id": result.vuln_id,
                     "stig_family": result.stig_family,
+                    "stig_release": result.stig_release or "",
                     "severity": result.severity,
                     "status": result.status,
                     "title": result.title,
@@ -207,6 +210,7 @@ def _check_block(result: CheckResult, *, index: int, total: int) -> list[str]:
         _field("Vulnerability", result.vuln_id),
         _field("Severity", result.severity.upper()),
         _field("STIG family", result.stig_family),
+        _field("STIG release", result.stig_release or "Unknown"),
     ]
     lines.extend(_labeled_text("Title", result.title or "Untitled check"))
 

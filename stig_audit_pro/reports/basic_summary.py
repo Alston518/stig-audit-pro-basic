@@ -48,14 +48,14 @@ def summarize(results, filters:Filter, targets=()):
                 generated=datetime.now(timezone.utc))
 
 def _detail(r):
-    return [r.hostname,r.ip,r.stig_family,cat(r.severity),r.status,r.vuln_id,r.title,
+    return [r.hostname,r.ip,r.stig_family,r.stig_release or '',cat(r.severity),r.status,r.vuln_id,r.title,
             r.finding_details,r.comments,r.evaluation_reason,r.error_message or '']
 
 def render_csv(report):
     from io import StringIO
     output=StringIO(newline='')
     writer=csv.writer(output)
-    writer.writerow(['Switch','IP','Family','Category','Status','Vuln ID','Title',
+    writer.writerow(['Switch','IP','Family','STIG Release','Category','Status','Vuln ID','Title',
                      'Finding details','Comments','Evaluation reason','Error'])
     for r in report['details']:writer.writerow(safe_spreadsheet_row(_detail(r)))
     return ('\ufeff'+output.getvalue()).encode('utf-8')
@@ -94,7 +94,7 @@ def render_html(report):
 <h2>All results by status</h2>{status_chart}<h2>Open findings by category</h2>{cat_chart}
 <h2>Open findings by switch</h2><div class="scroll"><table><tr><th>Switch</th><th>IP</th><th>CAT I</th><th>CAT II</th><th>CAT III</th><th>All open</th></tr>{''.join(switches)}</table></div>
 <h2>Filtered check details</h2><p>{escape(selected)}. {len(report['details'])} matching results.</p>
-<div class="scroll"><table><tr>{''.join('<th>'+escape(x)+'</th>' for x in ['Switch','IP','Family','Category','Status','Vuln ID','Title','Finding details','Comments','Evaluation reason','Error'])}</tr>{''.join(detail_rows)}</table></div></html>'''
+<div class="scroll"><table><tr>{''.join('<th>'+escape(x)+'</th>' for x in ['Switch','IP','Family','STIG Release','Category','Status','Vuln ID','Title','Finding details','Comments','Evaluation reason','Error'])}</tr>{''.join(detail_rows)}</table></div></html>'''
     return html.encode('utf-8')
 
 
@@ -136,7 +136,7 @@ def render_pdf(report):
     table(rows,[225,55,55,55,60]);section('Filtered check details')
     story.append(Paragraph(f"{len(report['details'])} matching of {report['checks']} results",styles['Normal']))
     for r in report['details']:
-        block=[Paragraph(escape(f'{r.ip} · {r.vuln_id} · {cat(r.severity)} · {r.status} · {r.stig_family}'),styles['Heading4']),Paragraph(escape(r.title),styles['Normal'])]
+        block=[Paragraph(escape(f'{r.ip} · {r.vuln_id} · {cat(r.severity)} · {r.status} · {r.stig_family} · {r.stig_release or "Unknown release"}'),styles['Heading4']),Paragraph(escape(r.title),styles['Normal'])]
         for label,value in [('Finding',r.finding_details),('Comments',r.comments),('Reason',r.evaluation_reason),('Error',r.error_message)]:
             if value:block.append(Paragraph(escape(label+': '+value),styles['Normal']))
         block.append(Spacer(1,5));story.append(KeepTogether(block))

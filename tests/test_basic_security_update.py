@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import sys
+import hashlib
+import json
 import queue
 import threading
 import types
@@ -26,7 +28,7 @@ from stig_audit_pro.storage.device_groups import DeviceTargetRecord
 
 
 @pytest.mark.parametrize("runner", [NetmikoRunner(), NetmikoSshRunner()])
-def test_basic_ssh_host_key_verification_is_temporarily_disabled(monkeypatch, runner):
+def test_basic_ssh_host_key_verification_is_strict(monkeypatch, runner):
     parameters = {}
 
     def reject_key(**kwargs):
@@ -39,12 +41,42 @@ def test_basic_ssh_host_key_verification_is_temporarily_disabled(monkeypatch, ru
         DeviceCredentials("operator", "example"),
         ["show version"],
     )
-    assert parameters["ssh_strict"] is False
+    assert parameters["ssh_strict"] is True
     assert parameters["system_host_keys"] is False
+    assert parameters["alt_host_keys"] is True
+    assert Path(parameters["alt_key_file"]).is_file()
     assert parameters["use_keys"] is False
     assert parameters["allow_agent"] is False
     assert result.status == "skipped"
     assert result.outputs == {}
+
+
+@pytest.mark.parametrize("runner", [NetmikoRunner(), NetmikoSshRunner()])
+def test_basic_ssh_host_key_check_can_be_disabled_explicitly(monkeypatch, runner):
+    parameters = {}
+
+    class Connection:
+        def __enter__(self):
+            return self
+        def __exit__(self, *_args):
+            return False
+        def send_command(self, command, **_kwargs):
+            return "ok"
+
+    def capture(**kwargs):
+        parameters.update(kwargs)
+        return Connection()
+
+    monkeypatch.setitem(sys.modules, "netmiko", types.SimpleNamespace(ConnectHandler=capture))
+    result = runner.run_commands(
+        DeviceTarget(ip="192.0.2.10"),
+        DeviceCredentials("operator", "example"),
+        ["show version"],
+        verify_host_key=False,
+    )
+    assert parameters["ssh_strict"] is False
+    assert parameters["alt_host_keys"] is False
+    assert result.status == "scanned"
 
 
 def test_basic_artifacts_are_encrypted_and_only_exported_explicitly(tmp_path):
@@ -91,13 +123,14 @@ def test_basic_artifact_export_requires_an_explicit_destination(tmp_path):
     assert destination.read_bytes() == b"<CHECKLIST>example</CHECKLIST>"
 
 
-def test_free_basic_run_writes_only_encrypted_txt_and_ckl(monkeypatch, tmp_path):
+def test_free_basic_run_writes_encrypted_reports_and_manifest(monkeypatch, tmp_path):
     from stig_audit_pro import basic_app
 
     ip = "192.0.2.10"
     row = CheckResult(
         ip=ip, hostname="SW-10", vuln_id="V-1", stig_family="IOSXE_L2",
         title="Example", severity="cat2", status="Open",
+        stig_release="Release: 2 Benchmark Date: 02 Jul 2025",
     )
     asset = CklAsset(scan_ip=ip, hostname="SW-10", management_ip=ip)
     result = types.SimpleNamespace(
@@ -126,8 +159,20 @@ def test_free_basic_run_writes_only_encrypted_txt_and_ckl(monkeypatch, tmp_path)
     event = app.events.get_nowait()
     assert event.message.startswith("Completed."), event.message
     assert app.license_policy.device_limit == 1
-    protected = list((tmp_path / "reports").glob("*.sapenc"))
+    protected = [p for p in (tmp_path / "reports").glob("*.sapenc") if ".manifest." not in p.name]
     assert sorted(path.suffixes[-2] for path in protected) == [".ckl", ".txt"]
+    manifests = list((tmp_path / "reports").glob("*.manifest.json.sapenc"))
+    assert len(manifests) == 1
+    manifest = json.loads(app.artifacts.read_manifest(manifests[0]))
+    assert manifest["operator"]
+    assert manifest["tool_version"]
+    assert manifest["stig_release"] == row.stig_release
+    assert manifest["timestamp"]
+    assert manifest["file_hashes"] == {
+        p.name: hashlib.sha256(app.artifacts.read(p)).hexdigest() for p in protected
+    }
+    assert b"file_hashes" not in manifests[0].read_bytes()
+    assert len(event.report_paths) == 2
     assert not list((tmp_path / "reports").glob("*.txt"))
     assert not list((tmp_path / "reports").glob("*.ckl"))
     assert b"SW-10" in app.artifacts.read(next(path for path in protected if ".txt." in path.name))

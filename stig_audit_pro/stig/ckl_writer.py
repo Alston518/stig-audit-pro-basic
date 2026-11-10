@@ -237,6 +237,8 @@ def _generated_comment(result: CheckResult, asset: CklAsset) -> str:
         f"Management IP: {asset.management_ip}",
         f"Scan target: {asset.scan_ip}",
     ]
+    if result.stig_release:
+        lines.append(f"STIG release: {result.stig_release}")
     if result.comments.strip():
         lines.extend(["", result.comments.strip()])
     if result.status in {"Error", "Skipped"} and result.error_message:

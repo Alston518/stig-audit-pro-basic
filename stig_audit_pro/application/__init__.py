@@ -1,32 +1,22 @@
-"""Application services coordinating the UI, domain, and infrastructure layers."""
+"""Application services; optional Pro services load only when requested."""
 
-from stig_audit_pro.application.audit_service import AuditService, AuditServiceResult
-from stig_audit_pro.application.report_service import ReportService
-from stig_audit_pro.application.run_service import RunService
-from stig_audit_pro.application.scan_orchestrator import (
-    DeviceScanOutcome,
-    ScanEvent,
-    ScanOrchestrator,
-    ScanSummary,
-)
-from stig_audit_pro.application.stig_lifecycle_service import StigLifecycleService
+from importlib import import_module
 
-__all__ = [
-    "AuditService",
-    "AuditServiceResult",
-    "DeviceScanOutcome",
-    "ReportService",
-    "RunService",
-    "ScanEvent",
-    "ScanOrchestrator",
-    "ScanSummary",
-    "StigLifecycleService",
-]
-from stig_audit_pro.application.preflight_service import (
-    PreflightIssue,
-    PreflightResult,
-    PreflightService,
-    PreflightSeverity,
-)
 
-__all__ = ["PreflightIssue", "PreflightResult", "PreflightService", "PreflightSeverity"]
+_EXPORTS = {
+    "AuditService": "audit_service", "AuditServiceResult": "audit_service",
+    "ReportService": "report_service", "RunService": "run_service",
+    "DeviceScanOutcome": "scan_orchestrator", "ScanEvent": "scan_orchestrator",
+    "ScanOrchestrator": "scan_orchestrator", "ScanSummary": "scan_orchestrator",
+    "StigLifecycleService": "stig_lifecycle_service",
+    "PreflightIssue": "preflight_service", "PreflightResult": "preflight_service",
+    "PreflightService": "preflight_service", "PreflightSeverity": "preflight_service",
+}
+__all__ = list(_EXPORTS)
+
+
+def __getattr__(name: str):
+    module = _EXPORTS.get(name)
+    if module is None:
+        raise AttributeError(name)
+    return getattr(import_module(f"{__name__}.{module}"), name)

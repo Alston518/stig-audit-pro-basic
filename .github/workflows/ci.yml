@@ -17,11 +17,31 @@ jobs:
           python-version: "3.12"
           cache: pip
       - name: Install dependencies
-        run: python -m pip install -r requirements.txt
+        run: |
+          python -m pip install --require-hashes -r requirements.lock
+          python -m pip install --require-hashes -r requirements-tools.lock
+      - name: Audit locked runtime dependencies
+        run: python -m pip_audit --require-hashes -r requirements.lock
+      - name: Audit locked build dependencies
+        run: python -m pip_audit --require-hashes -r requirements-tools.lock
+      - name: Scan source
+        run: python -m bandit -r stig_audit_pro -ll -f json -o bandit.json --exit-zero
+      - name: Reject high-severity source findings
+        run: python -m bandit -r stig_audit_pro -lll -q
+      - name: Generate runtime SBOM
+        run: python -m cyclonedx_py requirements requirements.lock --output-file sbom.cdx.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: security-reports
+          path: |
+            sbom.cdx.json
+            bandit.json
       - name: Test and validate YAML command policy
         run: python -m pytest -q
       - name: Validate Basic packaging inputs
         run: python -m PyInstaller --noconfirm --clean --distpath build/ci-dist --workpath build/ci-work "STIG Audit Basic.spec"
+      - name: Verify Basic bundle boundary
+        run: python scripts/check_basic_bundle.py build/ci-work
       - name: Build and run packaged offline smoke test
         shell: pwsh
         run: |

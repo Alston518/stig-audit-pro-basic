@@ -17,7 +17,7 @@ EXPECTED_SHEETS = (
 )
 FINDING_HEADERS = (
     "Run ID", "Device IP", "Hostname", "Vuln ID", "Rule ID", "STIG ID",
-    "Family", "Severity", "Status", "Title", "Evaluation Reason",
+    "Family", "STIG Release", "Severity", "Status", "Title", "Evaluation Reason",
     "Finding Details", "Comments", "Failed Objects", "Parser Warnings",
     "Commands Used", "Evidence Artifact IDs", "Evaluated At UTC",
 )
@@ -57,6 +57,7 @@ def _finding_row(result: CheckResult) -> list[Any]:
     return [
         _get(result, "run_id"), result.ip, result.hostname, result.vuln_id,
         _get(result, "rule_id"), _get(result, "stig_id"), result.stig_family,
+        result.stig_release or "",
         result.severity, result.status, result.title,
         _get(result, "evaluation_reason"), result.finding_details, result.comments,
         _objects(result.failed_objects), "; ".join(result.parser_warnings),
@@ -130,6 +131,7 @@ def write_excel_report(
         ("Run ID", _get(audit_run, "run_id")),
         ("Date (UTC)", _get(audit_run, "started_at") or datetime.now(timezone.utc).isoformat()),
         ("STIG families / versions", ", ".join(families)),
+        ("STIG releases", ", ".join(sorted({r.stig_release for r in result_list if r.stig_release}))),
         ("Profile", _get(audit_run, "profile_name")),
         ("Device count", len({result.ip for result in result_list})),
         ("Total checks", len(result_list)), ("Open", counts["Open"]),

@@ -34,7 +34,7 @@ class ScanPreset(BaseModel):
     target_ips: list[str] = Field(default_factory=list)
     stig_families: list[str] = Field(default_factory=list)
     profile_name: str
-    concurrency: int = Field(default=5, ge=1, le=20)
+    concurrency: int = Field(default=3, ge=1, le=20)
     connect_timeout: int = Field(default=30, ge=1, le=600)
     command_timeout: int = Field(default=30, ge=1, le=3600)
     report_options: ReportOptions = Field(default_factory=ReportOptions)

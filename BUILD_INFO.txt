@@ -1,0 +1,6 @@
+Package date: 2026-11-10
+Build: summary-export-offline-fix
+Base commit: 0dc89e2
+Base archive: STIG_Audit_Basic_2026-11-03-BATCH-REPORTS.zip
+Tests: 386 passed, 1 skipped; packaged report, PDF/HTML/CSV summary export, manifest viewer, fingerprint review UI, and GUI smoke passed; Basic bundle boundary passed; synthetic 91-device/5,824-result PDF rendered
+Changes: profile YAML import with validation and duplicate confirmation; safety controls, STIG release stamps, encrypted manifests, Basic bundle isolation, dependency lock, security scanning, regex timeouts; encrypted manifest viewer in Results; one-screen review and approval of new SSH host keys (changed saved keys remain blocked); auth lockout guard starts with two credential probes and stops refilling on authentication failure; optional first-use source note and confirmed bulk removal of saved keys; offline ReportLab import stub restores encrypted PDF summary export without bundling urllib.request

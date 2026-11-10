@@ -1,0 +1,4 @@
+pip-audit>=2.7,<3
+bandit>=1.7,<2
+cyclonedx-bom>=7,<9
+pip-tools>=7,<9

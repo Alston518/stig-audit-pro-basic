@@ -60,6 +60,24 @@ class ProtectedArtifactStore:
         original_name = self._original_name(protected)
         return self.vault.read_file(protected, self._association(original_name))
 
+    def save_manifest(self, clear_path: str | Path, contents: bytes) -> Path:
+        clear = Path(clear_path).expanduser()
+        if not clear.name.endswith(".manifest.json"):
+            raise ValueError("Manifest name must end in .manifest.json")
+        protected = clear.with_name(clear.name + PROTECTED_SUFFIX)
+        protected.parent.mkdir(parents=True, exist_ok=True)
+        self.vault.write_file(
+            protected, contents, "basic-manifest/" + clear.name, replace=False,
+        )
+        return protected
+
+    def read_manifest(self, protected_path: str | Path) -> bytes:
+        protected = Path(protected_path).expanduser()
+        if not protected.name.endswith(".manifest.json" + PROTECTED_SUFFIX):
+            raise ValueError("Choose an encrypted Basic manifest")
+        clear_name = protected.name[:-len(PROTECTED_SUFFIX)]
+        return self.vault.read_file(protected, "basic-manifest/" + clear_name)
+
     def export(self, protected_path: str | Path, destination: str | Path) -> Path:
         """Create a readable copy after a deliberate operator action."""
 

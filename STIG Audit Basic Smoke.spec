@@ -8,8 +8,10 @@ a = Analysis(
            ('stig_audit_pro/resources/licensing/public_keys',
             'stig_audit_pro/resources/licensing/public_keys')]
           + collect_data_files('customtkinter'),
-    hiddenimports=[], hookspath=[], hooksconfig={}, runtime_hooks=[],
-    excludes=['tools', 'tools.license_admin'], noarchive=False, optimize=0,
+    hiddenimports=[], hookspath=[], hooksconfig={}, runtime_hooks=['scripts/reportlab_offline_runtime.py'],
+    excludes=['tools', 'tools.license_admin', 'urllib.request', 'http.client',
+              'http.server', 'ftplib', 'smtplib', 'xmlrpc.client',
+              'xmlrpc.server'], noarchive=False, optimize=0,
 )
 pyz = PYZ(a.pure)
 exe = EXE(
